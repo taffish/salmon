@@ -10,27 +10,27 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.0.1-r1` |
-| container image | `ghcr.io/taffish/salmon:2.0.1-r1` |
+| TAFFISH version | `2.1.0-r1` |
+| container image | `ghcr.io/taffish/salmon:2.1.0-r1` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.0.1` |
-| runtime version | `salmon 2.0.1` |
+| upstream release | `v2.1.0` |
+| runtime version | `salmon 2.1.0` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## What Is Included
 
-This app packages the official Salmon `v2.0.1` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.1.0` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `afab8492f3b55c6e5e302f7044df4d072a925560c8d09f61d862618dad48fd89`
+  - SHA256: `415e28efe523f523813cf8fbfb6ea8d7f7eb1025b32dd0824d5c143a5e9a6293`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `c63dec5318ac09093824421d2f56f769c461399d0f28d44b8fb9275fedf87f45`
+  - SHA256: `b88da462569196da175c5e5e169af06031e9649cdcd19714e7b3f65e62a63763`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
 `/opt/salmon/salmon`, and exposes it as `/usr/local/bin/salmon`.
 
-Salmon 2.0 is a from-scratch Rust rewrite. It keeps the core
+Salmon 2 is a from-scratch Rust rewrite. It keeps the core
 `salmon index` -> `salmon quant` -> `quant.sf` workflow and downstream
 quantification table formats, but it is a new major version with intentional
 breaking changes.
@@ -145,7 +145,7 @@ taf-salmon -- --help
 
 ## Version Check And Network
 
-Salmon 2.0 accepts `--no-version-check` and `SALMON_NO_VERSION_CHECK` for
+Salmon 2 accepts `--no-version-check` and `SALMON_NO_VERSION_CHECK` for
 compatibility with C++ Salmon, but upstream documents them as no-ops: Salmon 2
 does not contact the network for version checks. Keeping the flag in scripts is
 safe, but no longer necessary.
@@ -161,7 +161,7 @@ Packaged upstream command:
 - `salmon debug-map`: diagnostic per-read best-mapping detail
 - `salmon alevin`: present only as an upstream migration message
 
-Salmon 2.0 removed the legacy integrated `salmon alevin` implementation. This
+Salmon 2 removed the legacy integrated `salmon alevin` implementation. This
 is an upstream change, not a TAFFISH packaging omission. Upstream recommends the
 `piscem` plus `alevin-fry` ecosystem for current single-cell workflows.
 
@@ -170,15 +170,17 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.0 uses a new Rust index format and cannot read C++ Salmon / pufferfish
-indices. Rebuild all pre-2.0 indices with this package before quantification.
+Salmon 2.1.0 introduces an explicit Salmon index format version in `info.json`.
+It writes `index_version = 1` and rejects Salmon 2.0.0 / 2.0.1 indices, which
+did not carry this format marker. Rebuild all pre-2.1.0 indices with this package
+before quantification.
 
 Downstream quantification outputs remain compatible: `quant.sf`, `cmd_info.json`,
 `lib_format_counts.json`, `aux_info/meta_info.json`, and inferential replicate
 outputs are intended to stay drop-in for tximport, tximeta, fishpond, and swish.
 
-The Salmon 2 migration guide documents removed, accepted-but-ignored, and new
-options. Notable changes include:
+The Salmon 2 migration guide and v2.1.0 release notes document removed,
+accepted-but-ignored, and new options. Notable changes include:
 
 - `--sketch` and `--sketchStrictOrphans` are new Salmon 2 quant options.
 - `--minAssignedFrags` is removed.
@@ -186,10 +188,14 @@ options. Notable changes include:
 - several niche C++ inference and alignment options are rejected or accepted
   only as compatibility no-ops.
 
-Salmon `2.0.1` is a patch release over `2.0.0` with no new options, no breaking
-changes, and no output-format changes. It refines selective-alignment
-multimapping weights by including fragment-length probability terms and using
-abundance-aware fragment-length-distribution training.
+Salmon `2.1.0` is a correctness-focused minor release over `2.0.1`. Upstream
+highlights include applied `-l A` library-type filtering, concordant-pairing and
+anchored-alignment fixes, default uni-MEM seeding, N-aware decoy indexing,
+corrected decoy behavior in selective-alignment and `--sketch` modes,
+`duplicate_clusters.tsv` emission under `--keepDuplicates`, new
+`--allowDecoyOrphans`, `--orphansRequireUnmappedMate`, and implemented
+`--noFragLengthDist` / fragment-length probability behavior. Standard
+`quant.sf` and inferential replicate formats remain unchanged.
 
 The app supports native Linux `amd64` and native Linux `arm64` through official
 upstream binaries. No Docker platform emulation is required for either declared
@@ -204,12 +210,12 @@ bundle reference transcriptomes, genomes, decoy lists, annotation files,
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.0.1` runtime version and Rust-port help banner
+- `salmon 2.1.0` runtime version and Rust-port help banner
 - no-op compatibility behavior for `--no-version-check`
 - help for `index`, `quant`, `quantmerge`, and `debug-map`
 - dynamic library resolution through `ldd`
 - a tiny Salmon 2 index build that writes `info.json`, `index.ssi`, and
-  `index.ctab`
+  `index.ctab`, and records `index_version = 1`
 - a tiny single-end selective-alignment `quant` run that writes `quant/quant.sf`
 - a tiny `quant --sketch` run that writes `sketch_quant/quant.sf`
 - `quantmerge` on two synthetic `quant.sf` directories
@@ -223,8 +229,8 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.0.1>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.0.1/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.1.0>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.1.0/MIGRATION.md>
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods
 - DOI: `10.1038/nmeth.4197`

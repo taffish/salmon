@@ -1,9 +1,9 @@
 FROM debian:13-slim AS fetcher
 
 ARG TARGETARCH
-ARG SALMON_VERSION=2.0.1
-ARG SALMON_X86_64_SHA256=afab8492f3b55c6e5e302f7044df4d072a925560c8d09f61d862618dad48fd89
-ARG SALMON_AARCH64_SHA256=c63dec5318ac09093824421d2f56f769c461399d0f28d44b8fb9275fedf87f45
+ARG SALMON_VERSION=2.1.0
+ARG SALMON_X86_64_SHA256=415e28efe523f523813cf8fbfb6ea8d7f7eb1025b32dd0824d5c143a5e9a6293
+ARG SALMON_AARCH64_SHA256=b88da462569196da175c5e5e169af06031e9649cdcd19714e7b3f65e62a63763
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -52,7 +52,7 @@ RUN set -eux; \
 
 FROM debian:13-slim
 
-ARG SALMON_VERSION=2.0.1
+ARG SALMON_VERSION=2.1.0
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -106,7 +106,8 @@ RUN set -eux; \
     test -s idx/info.json; \
     test -s idx/index.ssi; \
     test -s idx/index.ctab; \
-    grep -F '"salmon_version": "2.0.1"' idx/info.json >/dev/null; \
+    grep -F '"salmon_version": "2.1.0"' idx/info.json >/dev/null; \
+    grep -F '"index_version": 1' idx/info.json >/dev/null; \
     grep -F '"num_refs": 2' idx/info.json >/dev/null; \
     printf '@r1\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n@r2\nTTTTGGGGCCCCAAAATTTT\n+\nFFFFFFFFFFFFFFFFFFFF\n@r3\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n' > reads.fq; \
     salmon --no-version-check quant -i idx -l A -r reads.fq -o quant -p 1 --quiet >/tmp/taf-salmon-quant.log 2>&1; \
@@ -126,7 +127,7 @@ RUN set -eux; \
     grep -F "tx2" merged.tsv >/dev/null; \
     grep -F "90" merged.tsv >/dev/null; \
     { salmon --no-version-check alevin > alevin.out 2>&1 && exit 1 || true; }; \
-    grep -F "salmon alevin is not available in salmon 2.0" alevin.out >/dev/null; \
+    grep -F "salmon alevin is not available" alevin.out >/dev/null; \
     grep -F "alevin-fry" alevin.out >/dev/null; \
     rm -rf /tmp/taf-salmon-check /tmp/salmon.ldd
 

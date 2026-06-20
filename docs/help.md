@@ -1,6 +1,6 @@
-salmon 2.0.1-r1
+salmon 2.1.0-r1
 
-TAFFISH wrapper for Salmon v2.0.1 from COMBINE-lab.
+TAFFISH wrapper for Salmon v2.1.0 from COMBINE-lab.
 Salmon performs transcript-level RNA-seq quantification from reads or
 transcriptome alignments. Salmon 2 is the Rust CLI rewrite: it keeps the
 index -> quant -> quant.sf workflow, but uses a new index format.
@@ -64,26 +64,25 @@ Command Mode:
   Avoid ambiguous forms such as "taf-salmon index ..."; a non-option first
   argument may be interpreted as a container executable.
 
-Network:
-  Salmon 2 accepts --no-version-check for C++ Salmon compatibility, but it is
-  a no-op. Salmon 2 does not contact the network to check for newer releases.
-
 Migration Notes:
-  Salmon 2 is a Rust rewrite. Rebuild all indices made with Salmon versions
-  before 2.0; Salmon 2 cannot read old C++ / pufferfish indices.
+  Salmon 2 is a Rust rewrite. Salmon 2.1.0 writes index_version = 1 in
+  info.json and rejects indices made by Salmon 2.0.0/2.0.1 or older C++ /
+  pufferfish versions. Rebuild old indices with this package before quant.
 
-  quant.sf and the standard downstream output files remain drop-in for common
-  downstream tools such as tximport, tximeta, fishpond, and swish.
+  quant.sf and inferential replicate formats remain compatible. Salmon 2.1.0
+  improves library-type auto-detection, pairing, decoy-aware indexing,
+  sketch-mode decoy handling, duplicate transcript symmetry, and
+  fragment-length probability handling.
 
   salmon alevin is removed and now prints an upstream migration message; use
   alevin-fry for current single-cell workflows. salmon --cite is no longer a
   CLI option. Some C++ Salmon options were removed or are accepted only as no-op
   compatibility flags. Details:
-    https://github.com/COMBINE-lab/salmon/blob/v2.0.1/MIGRATION.md
+    https://github.com/COMBINE-lab/salmon/blob/v2.1.0/MIGRATION.md
 
 Package:
-  Image: ghcr.io/taffish/salmon:2.0.1-r1
+  Image: ghcr.io/taffish/salmon:2.1.0-r1
   Platforms: linux/amd64, linux/arm64
-  Runtime version: salmon 2.0.1
+  Runtime version: salmon 2.1.0
   Upstream license: BSD-3-Clause
   Citation DOI: 10.1038/nmeth.4197
