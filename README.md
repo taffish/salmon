@@ -10,21 +10,21 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.1.0-r1` |
-| container image | `ghcr.io/taffish/salmon:2.1.0-r1` |
+| TAFFISH version | `2.1.1-r1` |
+| container image | `ghcr.io/taffish/salmon:2.1.1-r1` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.1.0` |
-| runtime version | `salmon 2.1.0` |
+| upstream release | `v2.1.1` |
+| runtime version | `salmon 2.1.1` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## What Is Included
 
-This app packages the official Salmon `v2.1.0` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.1.1` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `415e28efe523f523813cf8fbfb6ea8d7f7eb1025b32dd0824d5c143a5e9a6293`
+  - SHA256: `184d87c5f376b33074e5d5a26538201d3ab13a9c7ea57c7862359b0c0d678d0e`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `b88da462569196da175c5e5e169af06031e9649cdcd19714e7b3f65e62a63763`
+  - SHA256: `dea1432725e8530f90c75c0bcbbb8d7e88d145af23862aeecbbaa98bdb5f89fe`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
@@ -170,10 +170,10 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.1.0 introduces an explicit Salmon index format version in `info.json`.
-It writes `index_version = 1` and rejects Salmon 2.0.0 / 2.0.1 indices, which
-did not carry this format marker. Rebuild all pre-2.1.0 indices with this package
-before quantification.
+Salmon 2.1.x writes an explicit Salmon index format version in `info.json`.
+This package still writes `index_version = 1`, matching Salmon 2.1.0. Rebuild
+all pre-2.1.0 indices before quantification; indices built by Salmon 2.1.0 are
+expected to remain compatible with this 2.1.1 package.
 
 Downstream quantification outputs remain compatible: `quant.sf`, `cmd_info.json`,
 `lib_format_counts.json`, `aux_info/meta_info.json`, and inferential replicate
@@ -188,14 +188,20 @@ accepted-but-ignored, and new options. Notable changes include:
 - several niche C++ inference and alignment options are rejected or accepted
   only as compatibility no-ops.
 
-Salmon `2.1.0` is a correctness-focused minor release over `2.0.1`. Upstream
-highlights include applied `-l A` library-type filtering, concordant-pairing and
-anchored-alignment fixes, default uni-MEM seeding, N-aware decoy indexing,
-corrected decoy behavior in selective-alignment and `--sketch` modes,
-`duplicate_clusters.tsv` emission under `--keepDuplicates`, new
-`--allowDecoyOrphans`, `--orphansRequireUnmappedMate`, and implemented
-`--noFragLengthDist` / fragment-length probability behavior. Standard
-`quant.sf` and inferential replicate formats remain unchanged.
+Salmon `2.1.1` is a correctness-and-completeness patch over `2.1.0`. Upstream
+highlights include corrected `num_mapped` reporting for stranded libraries,
+reworked handling of negligible abundance estimates with
+`inference_truncated_mass` metadata, inferential replicate output rows aligned
+with `quant.sf`, and bootstrap / Gibbs support in alignment mode. Standard
+point-estimate `quant.sf` output remains compatible with common downstream
+readers.
+
+The preceding `2.1.0` release introduced the Salmon 2 index format marker,
+applied `-l A` library-type filtering, fixed concordant-pairing and
+anchored-alignment behavior, added default uni-MEM seeding, improved decoy-aware
+indexing and sketch-mode behavior, emitted `duplicate_clusters.tsv` under
+`--keepDuplicates`, and implemented fragment-length probability behavior around
+`--noFragLengthDist`.
 
 The app supports native Linux `amd64` and native Linux `arm64` through official
 upstream binaries. No Docker platform emulation is required for either declared
@@ -210,7 +216,7 @@ bundle reference transcriptomes, genomes, decoy lists, annotation files,
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.1.0` runtime version and Rust-port help banner
+- `salmon 2.1.1` runtime version and Rust-port help banner
 - no-op compatibility behavior for `--no-version-check`
 - help for `index`, `quant`, `quantmerge`, and `debug-map`
 - dynamic library resolution through `ldd`
@@ -229,8 +235,8 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.1.0>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.1.0/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.1.1>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.1.1/MIGRATION.md>
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods
 - DOI: `10.1038/nmeth.4197`

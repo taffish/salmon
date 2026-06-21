@@ -1,9 +1,9 @@
 FROM debian:13-slim AS fetcher
 
 ARG TARGETARCH
-ARG SALMON_VERSION=2.1.0
-ARG SALMON_X86_64_SHA256=415e28efe523f523813cf8fbfb6ea8d7f7eb1025b32dd0824d5c143a5e9a6293
-ARG SALMON_AARCH64_SHA256=b88da462569196da175c5e5e169af06031e9649cdcd19714e7b3f65e62a63763
+ARG SALMON_VERSION=2.1.1
+ARG SALMON_X86_64_SHA256=184d87c5f376b33074e5d5a26538201d3ab13a9c7ea57c7862359b0c0d678d0e
+ARG SALMON_AARCH64_SHA256=dea1432725e8530f90c75c0bcbbb8d7e88d145af23862aeecbbaa98bdb5f89fe
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -52,7 +52,7 @@ RUN set -eux; \
 
 FROM debian:13-slim
 
-ARG SALMON_VERSION=2.1.0
+ARG SALMON_VERSION=2.1.1
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -106,7 +106,7 @@ RUN set -eux; \
     test -s idx/info.json; \
     test -s idx/index.ssi; \
     test -s idx/index.ctab; \
-    grep -F '"salmon_version": "2.1.0"' idx/info.json >/dev/null; \
+    grep -F '"salmon_version": "2.1.1"' idx/info.json >/dev/null; \
     grep -F '"index_version": 1' idx/info.json >/dev/null; \
     grep -F '"num_refs": 2' idx/info.json >/dev/null; \
     printf '@r1\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n@r2\nTTTTGGGGCCCCAAAATTTT\n+\nFFFFFFFFFFFFFFFFFFFF\n@r3\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n' > reads.fq; \
