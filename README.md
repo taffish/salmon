@@ -10,21 +10,21 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.1.1-r1` |
-| container image | `ghcr.io/taffish/salmon:2.1.1-r1` |
+| TAFFISH version | `2.2.1-r1` |
+| container image | `ghcr.io/taffish/salmon:2.2.1-r1` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.1.1` |
-| runtime version | `salmon 2.1.1` |
+| upstream release | `v2.2.1` |
+| runtime version | `salmon 2.2.1` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## What Is Included
 
-This app packages the official Salmon `v2.1.1` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.2.1` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `184d87c5f376b33074e5d5a26538201d3ab13a9c7ea57c7862359b0c0d678d0e`
+  - SHA256: `a5250dc9d9e9c4f54e24683f787fca59bafb11ba3d46c500ca5f97b3272693e9`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `dea1432725e8530f90c75c0bcbbb8d7e88d145af23862aeecbbaa98bdb5f89fe`
+  - SHA256: `bb3b7d1f367f1d3a5001b15c83f38d39584ac6451c2b46e779c311f8f48307fb`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
@@ -102,6 +102,39 @@ taf-salmon salmon quant \
   -p 8
 ```
 
+Write RAD mappings while quantifying:
+
+```sh
+taf-salmon salmon quant \
+  -i salmon_index \
+  -l A \
+  -r reads.fq.gz \
+  --writeRad sample.rad \
+  -o sample_quant \
+  -p 8
+```
+
+Quantify a RAD file directly:
+
+```sh
+taf-salmon salmon quant \
+  --rad sample.rad \
+  -o sample_rad_quant \
+  -p 8
+```
+
+Run deterministic FASTQ quantification:
+
+```sh
+taf-salmon salmon quant \
+  -i salmon_index \
+  -l A \
+  -r reads.fq.gz \
+  --deterministic \
+  -o sample_deterministic_quant \
+  -p 8
+```
+
 Merge transcript TPMs from multiple `quant.sf` outputs:
 
 ```sh
@@ -157,6 +190,9 @@ Packaged upstream command:
 - `salmon index`: build a Salmon 2 index from transcript FASTA
 - `salmon quant`: quantify transcript abundance from reads or alignments
 - `salmon quant --sketch`: use the Salmon 2 sketch / pseudoalignment path
+- `salmon quant --writeRad`: write RAD mappings while quantifying
+- `salmon quant --rad`: quantify a RAD file directly
+- `salmon quant --deterministic`: run reproducible FASTQ quantification
 - `salmon quantmerge`: merge Salmon quantification tables
 - `salmon debug-map`: diagnostic per-read best-mapping detail
 - `salmon alevin`: present only as an upstream migration message
@@ -170,10 +206,10 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.1.x writes an explicit Salmon index format version in `info.json`.
-This package still writes `index_version = 1`, matching Salmon 2.1.0. Rebuild
-all pre-2.1.0 indices before quantification; indices built by Salmon 2.1.0 are
-expected to remain compatible with this 2.1.1 package.
+Salmon 2.2.1 keeps the Salmon 2.1.x index format. This package still writes
+`index_version = 1`, and upstream states that no index rebuild is required when
+moving from 2.1.x to 2.2.1. Rebuild indices made by Salmon 2.0.0 or older C++ /
+pufferfish versions before quantification.
 
 Downstream quantification outputs remain compatible: `quant.sf`, `cmd_info.json`,
 `lib_format_counts.json`, `aux_info/meta_info.json`, and inferential replicate
@@ -188,13 +224,13 @@ accepted-but-ignored, and new options. Notable changes include:
 - several niche C++ inference and alignment options are rejected or accepted
   only as compatibility no-ops.
 
-Salmon `2.1.1` is a correctness-and-completeness patch over `2.1.0`. Upstream
-highlights include corrected `num_mapped` reporting for stranded libraries,
-reworked handling of negligible abundance estimates with
-`inference_truncated_mass` metadata, inferential replicate output rows aligned
-with `quant.sf`, and bootstrap / Gibbs support in alignment mode. Standard
-point-estimate `quant.sf` output remains compatible with common downstream
-readers.
+Salmon `2.2.1` is the recommended 2.2.x release. It includes the 2.2.0 feature
+set plus a security fix for an `lz4_flex` advisory pulled in by RAD
+compression. Upstream highlights include `--writeRad` / `--rad` decoupled
+mapping and quantification, `--deterministic` FASTQ quantification, bias-aware
+RAD input, and RAD chunk compression through `--radCompress`. Standard
+point-estimate `quant.sf`, inferential replicate formats, and the on-disk index
+format remain compatible with 2.1.x.
 
 The preceding `2.1.0` release introduced the Salmon 2 index format marker,
 applied `-l A` library-type filtering, fixed concordant-pairing and
@@ -216,9 +252,10 @@ bundle reference transcriptomes, genomes, decoy lists, annotation files,
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.1.1` runtime version and Rust-port help banner
+- `salmon 2.2.1` runtime version and Rust-port help banner
 - no-op compatibility behavior for `--no-version-check`
-- help for `index`, `quant`, `quantmerge`, and `debug-map`
+- help for `index`, `quant`, `quantmerge`, and `debug-map`, including the
+  2.2.x `writeRad` and `deterministic` options
 - dynamic library resolution through `ldd`
 - a tiny Salmon 2 index build that writes `info.json`, `index.ssi`, and
   `index.ctab`, and records `index_version = 1`
@@ -235,8 +272,8 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.1.1>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.1.1/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.2.1>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.2.1/MIGRATION.md>
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods
 - DOI: `10.1038/nmeth.4197`
