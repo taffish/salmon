@@ -1,9 +1,9 @@
 FROM debian:13-slim AS fetcher
 
 ARG TARGETARCH
-ARG SALMON_VERSION=2.2.1
-ARG SALMON_X86_64_SHA256=a5250dc9d9e9c4f54e24683f787fca59bafb11ba3d46c500ca5f97b3272693e9
-ARG SALMON_AARCH64_SHA256=bb3b7d1f367f1d3a5001b15c83f38d39584ac6451c2b46e779c311f8f48307fb
+ARG SALMON_VERSION=2.3.1
+ARG SALMON_X86_64_SHA256=0b5390db80ac2ccfe963e24c201e6bcffafe82807054f28f47cafa9c84e868ef
+ARG SALMON_AARCH64_SHA256=478377823b9eb74c8ad8f1d2df68ff85bc1fc018c1f7f40296f80c64e4cb4acc
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -52,7 +52,7 @@ RUN set -eux; \
 
 FROM debian:13-slim
 
-ARG SALMON_VERSION=2.2.1
+ARG SALMON_VERSION=2.3.1
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -95,6 +95,7 @@ RUN set -eux; \
     salmon --no-version-check quant --help 2>&1 | grep -F "Quantify transcript abundances" >/dev/null; \
     salmon --no-version-check quant --help 2>&1 | grep -F "writeRad" >/dev/null; \
     salmon --no-version-check quant --help 2>&1 | grep -F "deterministic" >/dev/null; \
+    salmon --no-version-check quant --help 2>&1 | grep -F "annotation" >/dev/null; \
     salmon --no-version-check quantmerge --help 2>&1 | grep -F "Merge a column across multiple samples" >/dev/null; \
     salmon --no-version-check debug-map --help 2>&1 | grep -F "per-read best-mapping detail" >/dev/null; \
     ldd "$(command -v salmon)" > /tmp/salmon.ldd; \
@@ -108,7 +109,7 @@ RUN set -eux; \
     test -s idx/info.json; \
     test -s idx/index.ssi; \
     test -s idx/index.ctab; \
-    grep -F '"salmon_version": "2.2.1"' idx/info.json >/dev/null; \
+    grep -F '"salmon_version": "2.3.1"' idx/info.json >/dev/null; \
     grep -F '"index_version": 1' idx/info.json >/dev/null; \
     grep -F '"num_refs": 2' idx/info.json >/dev/null; \
     printf '@r1\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n@r2\nTTTTGGGGCCCCAAAATTTT\n+\nFFFFFFFFFFFFFFFFFFFF\n@r3\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n' > reads.fq; \
