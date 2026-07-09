@@ -1,6 +1,6 @@
-salmon 2.3.1-r1
+salmon 2.3.2-r1
 
-TAFFISH wrapper for Salmon v2.3.1 from COMBINE-lab.
+TAFFISH wrapper for Salmon v2.3.2 from COMBINE-lab.
 Salmon performs transcript-level RNA-seq quantification from reads or
 transcriptome alignments. Salmon 2 is the Rust CLI rewrite: it keeps the
 index -> quant -> quant.sf workflow, but uses a new index format.
@@ -49,27 +49,6 @@ Examples:
     -o sample_sketch_quant \
     -p 8
 
-  taf-salmon salmon quant \
-    -i salmon_index \
-    -l A \
-    -r reads.fq.gz \
-    --writeRad sample.rad \
-    -o sample_quant \
-    -p 8
-
-  taf-salmon salmon quant \
-    --rad sample.rad \
-    -o sample_rad_quant \
-    -p 8
-
-  taf-salmon salmon quant \
-    -i salmon_index \
-    -l A \
-    -r reads.fq.gz \
-    --deterministic \
-    -o sample_deterministic_quant \
-    -p 8
-
   taf-salmon salmon quantmerge \
     --quants sample1_quant sample2_quant \
     --names sample1 sample2 \
@@ -86,28 +65,25 @@ Command Mode:
   argument may be interpreted as a container executable.
 
 Migration Notes:
-  Salmon 2 is a Rust rewrite. Salmon 2.1.x writes index_version = 1 in
-  info.json. Rebuild indices made by Salmon 2.0.0/2.0.1 or older C++ /
-  pufferfish versions; Salmon 2.1.0 indices are expected to remain compatible.
+  Salmon 2 is a Rust rewrite. Salmon 2.3.2 writes index_version = 1 in info.json
+  and keeps the Salmon 2.1.x / 2.2.x index line. Rebuild indices made by Salmon
+  2.0.0/2.0.1 or older C++ / pufferfish versions.
 
-  quant.sf remains compatible with common downstream readers. Salmon 2.3.1 is
-  a performance patch release on top of 2.3.0; upstream states that behavior,
-  CLI, index format, and output formats are unchanged from 2.3.0. Salmon 2.3.0
-  added genome-alignment quantification from name-grouped genome BAM plus GTF
-  annotation, deterministic transcriptome-alignment quantification, and
-  dependency cleanup. Salmon 2.2.x added RAD mapping / requantification through
-  --writeRad and --rad, deterministic FASTQ quantification through
-  --deterministic, RAD compression controls, and the lz4_flex security fix.
+  quant.sf remains compatible with common downstream readers. The v2.3.2 compare
+  shows richer meta_info/diagnostics, index scratch controls --sshashTmpDir and
+  --ramLimit, and mapping hot-path performance work. Salmon 2.3.0 added genome
+  BAM plus GTF annotation quantification. Salmon 2.2.x added --writeRad, --rad,
+  and --deterministic.
 
   salmon alevin is removed and now prints an upstream migration message; use
   alevin-fry for current single-cell workflows. salmon --cite is no longer a
   CLI option. Some C++ Salmon options were removed or are accepted only as no-op
   compatibility flags. Details:
-    https://github.com/COMBINE-lab/salmon/blob/v2.3.1/MIGRATION.md
+    https://github.com/COMBINE-lab/salmon/blob/v2.3.2/MIGRATION.md
 
 Package:
-  Image: ghcr.io/taffish/salmon:2.3.1-r1
+  Image: ghcr.io/taffish/salmon:2.3.2-r1
   Platforms: linux/amd64, linux/arm64
-  Runtime version: salmon 2.3.1
+  Runtime version: salmon 2.3.2
   Upstream license: BSD-3-Clause
   Citation DOI: 10.1038/nmeth.4197
