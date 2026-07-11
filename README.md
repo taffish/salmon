@@ -10,21 +10,22 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.3.2-r1` |
-| container image | `ghcr.io/taffish/salmon:2.3.2-r1` |
+| TAFFISH version | `2.3.3-r1` |
+| container image | `ghcr.io/taffish/salmon:2.3.3-r1` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.3.2` |
-| runtime version | `salmon 2.3.2` |
+| upstream release | `v2.3.3` |
+| upstream commit | `6914c29958d480c1f7ef8fc3373d751b09e8bfd1` |
+| runtime version | `salmon 2.3.3` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## What Is Included
 
-This app packages the official Salmon `v2.3.2` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.3.3` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `63fc39d1e58a980292722ad64ff569e241eb4e288cae7fbaf4bdd87ae7519ec3`
+  - SHA256: `cdcc8469fb759ff55d30a3f71239c90cb6aec7433b99bd92ee111e49bf3dfb6e`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `d4c913dfca04c65d0ceff9679179311499934d85071863c44d977306d24eb7bb`
+  - SHA256: `1da8efa7baa1c6584bf9833a7a6d26925c722cb35fffe0415693a933d0eca93d`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
@@ -135,6 +136,23 @@ taf-salmon salmon quant \
   -p 8
 ```
 
+Enable the opt-in SQUAREM or DAAREM EM/VBEM accelerator for slow-mixing
+problems or bootstrap-heavy workloads:
+
+```sh
+taf-salmon salmon quant \
+  -i salmon_index \
+  -l A \
+  -r reads.fq.gz \
+  --emAccel squarem \
+  -o sample_accelerated_quant \
+  -p 8
+```
+
+Use `--emAccel daarem` for the damped Anderson implementation. The default is
+`none`; both accelerators are opt-in and converge to the same fixed point, but
+their output is not byte-identical to the default at convergence tolerance.
+
 Merge transcript TPMs from multiple `quant.sf` outputs:
 
 ```sh
@@ -195,6 +213,7 @@ Packaged upstream command:
 - `salmon quant --writeRad`: write RAD mappings while quantifying
 - `salmon quant --rad`: quantify a RAD file directly
 - `salmon quant --deterministic`: run reproducible FASTQ quantification
+- `salmon quant --emAccel squarem|daarem`: opt into EM/VBEM acceleration
 - `salmon quantmerge`: merge Salmon quantification tables
 - `salmon debug-map`: diagnostic per-read best-mapping detail
 - `salmon alevin`: present only as an upstream migration message
@@ -208,7 +227,7 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.3.2 keeps the Salmon 2.1.x / 2.2.x index format. This package still
+Salmon 2.3.3 keeps the Salmon 2.1.x / 2.2.x / 2.3.x index format. This package still
 writes `index_version = 1`, and upstream states that the 2.3.x CLI, index, and
 output formats remain compatible with 2.2.x. Rebuild indices made by Salmon
 2.0.0 or older C++ / pufferfish versions before quantification.
@@ -226,9 +245,20 @@ accepted-but-ignored, and new options. Notable changes include:
 - several niche C++ inference and alignment options are rejected or accepted
   only as compatibility no-ops.
 
-Salmon `2.3.2` is the packaged upstream release. Its GitHub release notes are
-short and mostly list installer and binary assets, but the upstream
-`v2.3.1...v2.3.2` compare includes quality-of-life and performance work:
+Salmon `2.3.3` is the packaged upstream release. Upstream describes it as a
+drop-in update from 2.3.2: default quantification output is unchanged and no
+index rebuild is required. This release adds:
+
+- optional `--emAccel squarem` and `--emAccel daarem` acceleration for EM/VBEM,
+  including bootstrap replicates
+- per-phase timing through the `salmon::timing` tracing target for reads,
+  deterministic, alignment, and RAD quantification paths
+- a behavior-neutral fix for a zero-length radix-sort scratch placeholder that
+  could panic debug builds but did not affect shipped release binaries
+- tidier top-level help that removes the `(Rust port)` label and hides the
+  removed `alevin` subcommand while retaining its explicit migration redirect
+
+The preceding `2.3.2` release added quality-of-life and performance work:
 
 - richer `aux_info/meta_info.json` content and diagnostics for reads,
   alignment-based quantification, and RAD paths
@@ -273,16 +303,17 @@ bundle reference transcriptomes, genomes, decoy lists, annotation files,
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.3.2` runtime version and Rust-port help banner
+- `salmon 2.3.3` runtime version and updated top-level help
 - no-op compatibility behavior for `--no-version-check`
 - help for `index`, `quant`, `quantmerge`, and `debug-map`, including the
-  2.3.2 `sshashTmpDir` / `ramLimit` index options and the 2.2.x / 2.3.x
-  `writeRad`, `deterministic`, and genome-annotation options
+  `sshashTmpDir`, `ramLimit`, `writeRad`, `deterministic`, genome annotation,
+  and the new `emAccel` choices
 - dynamic library resolution through `ldd`
 - a tiny Salmon 2 index build that writes `info.json`, `index.ssi`, and
   `index.ctab`, and records `index_version = 1`
 - a tiny single-end selective-alignment `quant` run that writes `quant/quant.sf`
 - a tiny `quant --sketch` run that writes `sketch_quant/quant.sf`
+- independent tiny `--emAccel squarem` and `--emAccel daarem` quantification
 - `quantmerge` on two synthetic `quant.sf` directories
 - the upstream `alevin` removal and migration message
 
@@ -294,8 +325,8 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.3.2>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.3.2/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.3.3>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.3.3/MIGRATION.md>
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods
 - DOI: `10.1038/nmeth.4197`

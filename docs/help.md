@@ -1,6 +1,6 @@
-salmon 2.3.2-r1
+salmon 2.3.3-r1
 
-TAFFISH wrapper for Salmon v2.3.2 from COMBINE-lab.
+TAFFISH wrapper for Salmon v2.3.3 from COMBINE-lab.
 Salmon performs transcript-level RNA-seq quantification from reads or
 transcriptome alignments. Salmon 2 is the Rust CLI rewrite: it keeps the
 index -> quant -> quant.sf workflow, but uses a new index format.
@@ -38,6 +38,7 @@ Examples:
     -i salmon_index \
     -l A \
     -r reads.fq.gz \
+    --emAccel squarem \
     -o sample_quant \
     -p 8
 
@@ -65,25 +66,21 @@ Command Mode:
   argument may be interpreted as a container executable.
 
 Migration Notes:
-  Salmon 2 is a Rust rewrite. Salmon 2.3.2 writes index_version = 1 in info.json
-  and keeps the Salmon 2.1.x / 2.2.x index line. Rebuild indices made by Salmon
-  2.0.0/2.0.1 or older C++ / pufferfish versions.
+  Salmon 2 is a Rust rewrite. Salmon 2.3.3 keeps index_version = 1 and requires
+  no rebuild of compatible 2.1.x-2.3.x indices. Default quantification output is
+  unchanged from 2.3.2. The new --emAccel squarem and --emAccel daarem modes are
+  opt-in EM/VBEM accelerators; default is none. Per-phase timing is available
+  through RUST_LOG=salmon::timing=info. Rebuild indices made by Salmon 2.0.x or
+  older C++ / pufferfish versions.
 
-  quant.sf remains compatible with common downstream readers. The v2.3.2 compare
-  shows richer meta_info/diagnostics, index scratch controls --sshashTmpDir and
-  --ramLimit, and mapping hot-path performance work. Salmon 2.3.0 added genome
-  BAM plus GTF annotation quantification. Salmon 2.2.x added --writeRad, --rad,
-  and --deterministic.
-
-  salmon alevin is removed and now prints an upstream migration message; use
-  alevin-fry for current single-cell workflows. salmon --cite is no longer a
-  CLI option. Some C++ Salmon options were removed or are accepted only as no-op
-  compatibility flags. Details:
-    https://github.com/COMBINE-lab/salmon/blob/v2.3.2/MIGRATION.md
+  salmon alevin is hidden from help and prints a migration message when called;
+  use alevin-fry for current single-cell workflows. salmon --cite is no longer
+  a CLI option. Some C++ options are removed or accepted only as no-ops. Details:
+    https://github.com/COMBINE-lab/salmon/blob/v2.3.3/MIGRATION.md
 
 Package:
-  Image: ghcr.io/taffish/salmon:2.3.2-r1
+  Image: ghcr.io/taffish/salmon:2.3.3-r1
   Platforms: linux/amd64, linux/arm64
-  Runtime version: salmon 2.3.2
+  Runtime version: salmon 2.3.3
   Upstream license: BSD-3-Clause
   Citation DOI: 10.1038/nmeth.4197
