@@ -10,22 +10,22 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.3.3-r1` |
-| container image | `ghcr.io/taffish/salmon:2.3.3-r1` |
+| TAFFISH version | `2.3.4-r1` |
+| container image | `ghcr.io/taffish/salmon:2.3.4-r1` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.3.3` |
-| upstream commit | `6914c29958d480c1f7ef8fc3373d751b09e8bfd1` |
-| runtime version | `salmon 2.3.3` |
+| upstream release | `v2.3.4` |
+| upstream commit | `d53fed6f0af6966a40825558f0edf71b6df7cf52` |
+| runtime version | `salmon 2.3.4` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## What Is Included
 
-This app packages the official Salmon `v2.3.3` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.3.4` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `cdcc8469fb759ff55d30a3f71239c90cb6aec7433b99bd92ee111e49bf3dfb6e`
+  - SHA256: `90074df4fd9b3a0c9ffeab50472543dc090ca1d16e9d546bd082383f6b72670a`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `1da8efa7baa1c6584bf9833a7a6d26925c722cb35fffe0415693a933d0eca93d`
+  - SHA256: `06c548f9ffca1e2d166e18a8a5b7aca1902a3e6dcc7b4ebfaa2a4e2f7a3303f0`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
@@ -227,7 +227,7 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.3.3 keeps the Salmon 2.1.x / 2.2.x / 2.3.x index format. This package still
+Salmon 2.3.4 keeps the Salmon 2.1.x / 2.2.x / 2.3.x index format. This package still
 writes `index_version = 1`, and upstream states that the 2.3.x CLI, index, and
 output formats remain compatible with 2.2.x. Rebuild indices made by Salmon
 2.0.0 or older C++ / pufferfish versions before quantification.
@@ -245,9 +245,16 @@ accepted-but-ignored, and new options. Notable changes include:
 - several niche C++ inference and alignment options are rejected or accepted
   only as compatibility no-ops.
 
-Salmon `2.3.3` is the packaged upstream release. Upstream describes it as a
-drop-in update from 2.3.2: default quantification output is unchanged and no
-index rebuild is required. This release adds:
+Salmon `2.3.4` is the packaged upstream release. It is a focused bug-fix release
+on 2.3.3. In alignment mode (`salmon quant -a`), genuine single-end SAM/BAM
+records have the SAM `0x1` paired flag unset. Salmon 2.3.3 could misclassify
+those records as paired-end right orphans and discard all alignments under
+stranded single-end library types `SF` or `SR`. Version 2.3.4 classifies them
+from `0x1` and applies strand filtering to the record's own `0x10` orientation.
+Paired-end workflows, reads-mode quantification, and single-end `--libType U`
+results are unchanged, and no index rebuild is required.
+
+The preceding `2.3.3` release added:
 
 - optional `--emAccel squarem` and `--emAccel daarem` acceleration for EM/VBEM,
   including bootstrap replicates
@@ -303,7 +310,7 @@ bundle reference transcriptomes, genomes, decoy lists, annotation files,
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.3.3` runtime version and updated top-level help
+- `salmon 2.3.4` runtime version and updated top-level help
 - no-op compatibility behavior for `--no-version-check`
 - help for `index`, `quant`, `quantmerge`, and `debug-map`, including the
   `sshashTmpDir`, `ramLimit`, `writeRad`, `deterministic`, genome annotation,
@@ -313,6 +320,8 @@ The smoke tests are independent and run without network access. They check:
   `index.ctab`, and records `index_version = 1`
 - a tiny single-end selective-alignment `quant` run that writes `quant/quant.sf`
 - a tiny `quant --sketch` run that writes `sketch_quant/quant.sf`
+- a transcriptome-SAM alignment-mode regression using `U`, `SF`, and `SR`,
+  verifying the Salmon 2.3.4 genuine single-end strandedness fix
 - independent tiny `--emAccel squarem` and `--emAccel daarem` quantification
 - `quantmerge` on two synthetic `quant.sf` directories
 - the upstream `alevin` removal and migration message
@@ -325,8 +334,8 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.3.3>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.3.3/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.3.4>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.3.4/MIGRATION.md>
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods
 - DOI: `10.1038/nmeth.4197`

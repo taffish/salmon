@@ -1,2 +1,2 @@
-<taf-app:container:ghcr.io/taffish/salmon:2.3.3-r1>
+<taf-app:container:ghcr.io/taffish/salmon:2.3.4-r1>
 salmon ::*ARGV*::
