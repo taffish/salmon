@@ -1,9 +1,9 @@
 FROM debian:13-slim AS fetcher
 
 ARG TARGETARCH
-ARG SALMON_VERSION=2.3.4
-ARG SALMON_X86_64_SHA256=90074df4fd9b3a0c9ffeab50472543dc090ca1d16e9d546bd082383f6b72670a
-ARG SALMON_AARCH64_SHA256=06c548f9ffca1e2d166e18a8a5b7aca1902a3e6dcc7b4ebfaa2a4e2f7a3303f0
+ARG SALMON_VERSION=2.4.1
+ARG SALMON_X86_64_SHA256=882717ae835fdc6b8676f457a989a3d354a69adb3d7cab0051d21e2e4e1eaf40
+ARG SALMON_AARCH64_SHA256=af8854b208082198aff13879ca69938cfe215e928289de948a802aa7c566efc8
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -52,7 +52,7 @@ RUN set -eux; \
 
 FROM debian:13-slim
 
-ARG SALMON_VERSION=2.3.4
+ARG SALMON_VERSION=2.4.1
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -71,7 +71,8 @@ RUN set -eux; \
       apt-get update && \
       apt-get install -y --no-install-recommends \
         ca-certificates \
-        libgcc-s1 && \
+        libgcc-s1 \
+        procps && \
       break; \
       if [ "${attempt}" = "3" ]; then exit 1; fi; \
       rm -rf /var/lib/apt/lists/*; \
@@ -80,51 +81,14 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=fetcher /opt/salmon /opt/salmon
+COPY docker/salmon-smoke.sh /opt/salmon/share/salmon-smoke.sh
 
 RUN set -eux; \
-    ln -sf /opt/salmon/salmon /usr/local/bin/salmon
+    ln -sf /opt/salmon/salmon /usr/local/bin/salmon; \
+    chmod 0755 /opt/salmon/share/salmon-smoke.sh
 
 RUN set -eux; \
-    command -v salmon >/dev/null; \
-    command -v ldd >/dev/null; \
-    command -v locale >/dev/null; \
-    test "$(salmon --version)" = "salmon ${SALMON_VERSION}"; \
-    salmon --help 2>&1 | grep -F "RNA-seq transcript quantification" >/dev/null; \
-    if salmon --help 2>&1 | grep -F "(Rust port)"; then exit 1; fi; \
-    if salmon --help 2>&1 | grep -F "alevin"; then exit 1; fi; \
-    salmon --no-version-check --help 2>&1 | grep -F "no-op" >/dev/null; \
-    salmon --no-version-check index --help 2>&1 | grep -F "Build a salmon index" >/dev/null; \
-    salmon --no-version-check index --help 2>&1 | grep -F "sshashTmpDir" >/dev/null; \
-    salmon --no-version-check index --help 2>&1 | grep -F "ramLimit" >/dev/null; \
-    salmon --no-version-check quant --help 2>&1 | grep -F "Quantify transcript abundances" >/dev/null; \
-    salmon --no-version-check quant --help 2>&1 | grep -F "writeRad" >/dev/null; \
-    salmon --no-version-check quant --help 2>&1 | grep -F "deterministic" >/dev/null; \
-    salmon --no-version-check quant --help 2>&1 | grep -F "annotation" >/dev/null; \
-    salmon --no-version-check quant --help 2>&1 | grep -F "emAccel" >/dev/null; \
-    salmon --no-version-check quant --help 2>&1 | grep -F "squarem" >/dev/null; \
-    salmon --no-version-check quant --help 2>&1 | grep -F "daarem" >/dev/null; \
-    salmon --no-version-check quantmerge --help 2>&1 | grep -F "Merge a column across multiple samples" >/dev/null; \
-    salmon --no-version-check debug-map --help 2>&1 | grep -F "per-read best-mapping detail" >/dev/null; \
-    ldd "$(command -v salmon)" > /tmp/salmon.ldd; \
-    grep -F "libgcc_s.so" /tmp/salmon.ldd >/dev/null; \
-    grep -F "libc.so" /tmp/salmon.ldd >/dev/null; \
-    ! grep -F "not found" /tmp/salmon.ldd >/dev/null; \
-    mkdir -p /tmp/taf-salmon-check; \
-    cd /tmp/taf-salmon-check; \
-    printf '>tx1\nACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT\n>tx2\nTTTTGGGGCCCCAAAATTTTGGGGCCCCAAAATTTTGGGG\n' > transcripts.fa; \
-    salmon --no-version-check index -t transcripts.fa -i idx -k 15 -p 1 >/tmp/taf-salmon-index.log 2>&1; \
-    test -s idx/info.json; \
-    test -s idx/index.ssi; \
-    test -s idx/index.ctab; \
-    grep -F "\"salmon_version\": \"${SALMON_VERSION}\"" idx/info.json >/dev/null; \
-    grep -F '"index_version": 1' idx/info.json >/dev/null; \
-    grep -F '"num_refs": 2' idx/info.json >/dev/null; \
-    printf '@r1\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n@r2\nTTTTGGGGCCCCAAAATTTT\n+\nFFFFFFFFFFFFFFFFFFFF\n@r3\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n' > reads.fq; \
-    salmon --no-version-check quant -i idx -l A -r reads.fq -o quant -p 1 --quiet >/tmp/taf-salmon-quant.log 2>&1; \
-    test -s quant/quant.sf; \
-    grep -F "Name" quant/quant.sf >/dev/null; \
-    grep -F "tx1" quant/quant.sf >/dev/null; \
-    grep -F "tx2" quant/quant.sf >/dev/null; \
-    rm -rf /tmp/taf-salmon-check /tmp/salmon.ldd
+    SALMON_SMOKE_VERSION="${SALMON_VERSION}" \
+        sh /opt/salmon/share/salmon-smoke.sh buildtime
 
 WORKDIR /root
