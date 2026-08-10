@@ -3,7 +3,7 @@
 set -eu
 
 mode=${1:-all}
-expected_version=${SALMON_SMOKE_VERSION:-2.4.1}
+expected_version=${SALMON_SMOKE_VERSION:-2.5.0}
 work="/tmp/taf-salmon-smoke-${mode}"
 
 cleanup() {
@@ -107,6 +107,9 @@ smoke_interfaces() {
     salmon --no-version-check quant --help 2>&1 | grep -F 'writeRad' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F 'deterministic' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F 'annotation' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F -- '--decoder' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F -- '--threadPolicy' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F 'optionally compressed' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F 'writeBam' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F 'writeSam' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F 'bamCompressThreads' >/dev/null
@@ -130,11 +133,19 @@ smoke_index() {
 smoke_quant() {
     write_reads_fixture
     build_index
-    gzip -c "$work/reads.fq" > "$work/reads.fq.gz"
+    gzip -c "$work/reads.fq" > "$work/reads.compressed"
+    printf '{"parallel_decode":{"min_threads_per_stream":16}}\n' > "$work/thread-policy.json"
+    printf 'tx1\tgene1\ntx2\tgene2\n' > "$work/genes.tsv"
+    gzip -c "$work/genes.tsv" > "$work/genes.compressed"
     salmon --no-version-check quant \
-        -i "$work/idx" -l A -r "$work/reads.fq.gz" \
+        -i "$work/idx" -l A -r "$work/reads.compressed" \
+        --decoder serial --threadPolicy "$work/thread-policy.json" \
+        --geneMap "$work/genes.compressed" \
         -o "$work/quant" -p 1 --quiet > "$work/quant.log" 2>&1
     assert_basic_quant "$work/quant"
+    test -s "$work/quant/quant.genes.sf"
+    grep -F 'gene1' "$work/quant/quant.genes.sf" >/dev/null
+    grep -F 'gene2' "$work/quant/quant.genes.sf" >/dev/null
 
     cat > "$work/reads_1.fq" <<'EOF'
 @p1/1

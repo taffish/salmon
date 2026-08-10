@@ -10,14 +10,14 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.4.1-r1` |
-| container image | `ghcr.io/taffish/salmon:2.4.1-r1` |
+| TAFFISH version | `2.5.0-r1` |
+| container image | `ghcr.io/taffish/salmon:2.5.0-r1` |
 | TAFFISH app license | `Apache-2.0` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.4.1` |
-| upstream commit | `a6084625d0d713118fa7d315055c68f18605f660` |
+| upstream release | `v2.5.0` |
+| upstream commit | `5a97c176bf13a64fa68d7ccf0ef4b5820a601fb6` |
 | upstream license | `BSD-3-Clause` |
-| runtime version | `salmon 2.4.1` |
+| runtime version | `salmon 2.5.0` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## Installation
@@ -41,12 +41,12 @@ needs architecture emulation for `linux/amd64` or `linux/arm64`.
 
 ## What Is Included
 
-This app packages the official Salmon `v2.4.1` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.5.0` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `882717ae835fdc6b8676f457a989a3d354a69adb3d7cab0051d21e2e4e1eaf40`
+  - SHA256: `e09d9134270e7f72bac5520d01bce2d77b96ed0af4ea080fcf635d6b35d2ce46`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `af8854b208082198aff13879ca69938cfe215e928289de948a802aa7c566efc8`
+  - SHA256: `da369b7eebc663c07efe73ea25b0bda12ccb3336b5eeecbb134e8e2336343bb6`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
@@ -112,6 +112,23 @@ taf-salmon salmon quant \
   -o sample_quant \
   -p 8
 ```
+
+For compressed reads, `-p` is the shared execution-slot budget for decoding
+and mapping. Salmon 2.5 chooses a serial or parallel decoder automatically. To
+override that decision or supply a reviewed policy file:
+
+```sh
+taf-salmon salmon quant \
+  -i salmon_index -l A -r reads.fq.gz \
+  --decoder serial \
+  --threadPolicy thread-policy.json \
+  -o sample_quant -p 8
+```
+
+`--decoder` accepts `auto`, `serial`, `parallel`, or `parallel=N`. Compression
+is detected from file content rather than the extension for reads, targets,
+alignments, and gene maps; supported formats include gzip/BGZF, bzip2, xz, and
+zstd. A plain or non-seekable input falls back to serial decoding.
 
 Use the Salmon 2 sketch mode:
 
@@ -259,6 +276,10 @@ Packaged upstream command:
 - `salmon quant -a genome.bam --annotation genes.gtf`: quantify from a
   name-grouped genome-aligned BAM plus annotation
 - `salmon quant --sketch`: use the Salmon 2 sketch / pseudoalignment path
+- `salmon quant --decoder auto|serial|parallel|parallel=N`: control compressed
+  input decoding within the shared thread budget
+- `salmon quant --threadPolicy FILE`: override the decoder engagement policy
+- `salmon quant --geneMap FILE`: accept plain or compressed GTF/GFF/TSV gene maps
 - `salmon quant --writeRad`: write RAD mappings while quantifying
 - `salmon quant --rad`: quantify a RAD file directly
 - `salmon quant --fldPolicy baked|derive|prior`: select the fragment-length
@@ -281,20 +302,31 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.4.1 keeps `index_version = 1`; upstream requires no index rebuild when
-moving from 2.4.0 and preserves Salmon 2 quantification output formats. Rebuild
+Salmon 2.5.0 keeps `index_version = 1`; upstream requires no index rebuild when
+moving from 2.4.1 and preserves Salmon 2 quantification output formats. Rebuild
 indices made by Salmon 2.0.x or older C++ / pufferfish versions. Standard
 outputs such as `quant.sf`, `cmd_info.json`, `lib_format_counts.json`, and
 `aux_info/meta_info.json` remain suitable for downstream consumers including
 tximport and tximeta.
 
-Version 2.4.1 fixes a RAD reader race introduced in 2.2.0. The race could
-silently produce zero or partial counts and was most likely at low thread
-counts; upstream observed it more readily under arm64 CI stress. The affected
-paths were `quant --rad`, `--deterministic`, and genome projection with
-`-a --annotation`. Plain transcriptome alignment quantification with `-a` and
-ordinary reads-mode mapping were not affected. Version 2.4.1 makes no CLI or
-index-format changes relative to 2.4.0.
+Version 2.5.0 makes `-p` a shared execution-slot budget for mapping and gzip
+decoding. It adds adaptive decoder scheduling, `--decoder`, `--threadPolicy`,
+content-based gzip/BGZF/bzip2/xz/zstd detection across input paths, and
+compressed `--geneMap` support. Upstream reports unchanged quantification
+results and no index rebuild requirement. It also fixes incomplete failed RAD
+outputs, widens packed equivalence-class offsets, improves gene-map validation
+and warnings, and updates the parallel decoding stack to include the upstream
+deadlock fix.
+
+At a fixed thread count with the serial decoder, upstream reports byte-identical
+`quant.sf` output relative to 2.4.1. Across thread counts, floating-point shard
+reduction can vary below reported precision; repeated single-threaded runs are
+still expected to be byte-identical.
+
+Version 2.4.1 fixed a RAD reader race introduced in 2.2.0. It could silently
+produce zero or partial counts in `quant --rad`, `--deterministic`, and genome
+projection with `-a --annotation`, especially at low thread counts. The runtime
+smoke retains repeated one-thread RAD regression coverage for this path.
 
 Version 2.4.0 added:
 
@@ -324,16 +356,19 @@ bundle reference transcriptomes, genomes, decoy lists, annotation files,
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.4.1` runtime version and top-level help
+- `salmon 2.5.0` runtime version and top-level help
 - no-op compatibility behavior for `--no-version-check`
 - help for `index`, `quant`, `quantmerge`, and `debug-map`, including the
-  `sshashTmpDir`, `ramLimit`, `writeRad`, `deterministic`, genome annotation,
-  `writeBam`, `writeSam`, `bamCompressThreads`, `fldPolicy`, and `emAccel`
+  `sshashTmpDir`, `ramLimit`, `decoder`, `threadPolicy`, `writeRad`,
+  `deterministic`, genome annotation, `writeBam`, `writeSam`,
+  `bamCompressThreads`, `fldPolicy`, and `emAccel`
 - dynamic library resolution through `ldd`
 - a tiny Salmon 2 index build that writes `info.json`, `index.ssi`, and
   `index.ctab`, and records `index_version = 1`
 - gzip-compressed single-end and paired-end selective-alignment `quant` runs
-  with absolute processed, mapped, and `NumReads` mass assertions
+  with absolute processed, mapped, and `NumReads` mass assertions; the
+  single-end case uses misleading filenames, an explicit serial decoder, a
+  validated thread-policy JSON file, and a gzip-compressed gene map
 - a tiny `quant --sketch` run that writes `sketch_quant/quant.sf`
 - a transcriptome-SAM alignment-mode regression using `U`, `SF`, and `SR`,
   preserving the genuine single-end strandedness regression coverage
@@ -356,8 +391,9 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.4.1>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.4.1/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.5.0>
+- Release notes: <https://github.com/COMBINE-lab/salmon/blob/v2.5.0/docs/release-notes-2.5.0.md>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.5.0/MIGRATION.md>
 - TAFFISH app packaging license: Apache-2.0
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods
