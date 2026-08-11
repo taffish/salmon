@@ -1,6 +1,6 @@
-salmon 2.5.0-r1
+salmon 2.5.1-r1
 
-TAFFISH wrapper for Salmon v2.5.0 from COMBINE-lab.
+TAFFISH wrapper for Salmon v2.5.1 from COMBINE-lab.
 Salmon performs transcript-level RNA-seq quantification from reads,
 transcriptome alignments, genome alignments plus annotation, or RAD files.
 
@@ -66,6 +66,7 @@ Salmon 2.5 Notes:
   -p is a shared execution-slot budget for compressed-input decoding and
   mapping. --decoder accepts auto, serial, parallel, or parallel=N;
   --threadPolicy accepts a reviewed JSON policy file.
+  2.5.1 bounds the adaptive mapping-worker pool structurally.
   Compression is detected from content for reads, targets, alignments, and
   gene maps; gzip/BGZF, bzip2, xz, and zstd are supported.
   --writeBam/--writeSam exports are unsorted and unindexed.
@@ -74,15 +75,15 @@ Salmon 2.5 Notes:
   --sketch selects the sketch / pseudoalignment path.
 
 Compatibility:
-  Salmon 2.5.0 keeps index_version = 1 and needs no index rebuild from 2.4.1.
+  Salmon 2.5.1 keeps index_version = 1 and needs no rebuild from 2.5.0/2.4.1.
   Rebuild Salmon 2.0.x or older C++ / pufferfish indices. salmon alevin only
   prints a migration message; use alevin-fry for current single-cell work.
 
 Package:
-  Image: ghcr.io/taffish/salmon:2.5.0-r1
+  Image: ghcr.io/taffish/salmon:2.5.1-r1
   Backends/platforms: Docker or Podman; native linux/amd64, linux/arm64
-  Runtime version: salmon 2.5.0
+  Runtime version: salmon 2.5.1
   Runtime support: GNU libraries, CA certificates, procps
   Licenses: Apache-2.0 (TAFFISH app); BSD-3-Clause (upstream)
   Citation DOI: 10.1038/nmeth.4197
-  Release: https://github.com/COMBINE-lab/salmon/releases/tag/v2.5.0
+  Release: https://github.com/COMBINE-lab/salmon/releases/tag/v2.5.1

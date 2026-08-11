@@ -10,14 +10,14 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.5.0-r1` |
-| container image | `ghcr.io/taffish/salmon:2.5.0-r1` |
+| TAFFISH version | `2.5.1-r1` |
+| container image | `ghcr.io/taffish/salmon:2.5.1-r1` |
 | TAFFISH app license | `Apache-2.0` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.5.0` |
-| upstream commit | `5a97c176bf13a64fa68d7ccf0ef4b5820a601fb6` |
+| upstream release | `v2.5.1` |
+| upstream commit | `c360459bbf16e649a5c10c097e59f3c72e6b2e3c` |
 | upstream license | `BSD-3-Clause` |
-| runtime version | `salmon 2.5.0` |
+| runtime version | `salmon 2.5.1` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## Installation
@@ -41,16 +41,21 @@ needs architecture emulation for `linux/amd64` or `linux/arm64`.
 
 ## What Is Included
 
-This app packages the official Salmon `v2.5.0` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.5.1` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `e09d9134270e7f72bac5520d01bce2d77b96ed0af4ea080fcf635d6b35d2ce46`
+  - SHA256: `6ad2a01b2022092f88f4c95601d19751e594dd3aa7be77ee7c11c1abf4842cbe`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `da369b7eebc663c07efe73ea25b0bda12ccb3336b5eeecbb134e8e2336343bb6`
+  - SHA256: `8d4829a2132e5f45f0091a59ea309ab2f874ae2ecdab2df6f7c3c47fd3eab7f8`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
-`/opt/salmon/salmon`, and exposes it as `/usr/local/bin/salmon`.
+`/opt/salmon/salmon`, records immutable source identity in
+`/opt/salmon/share/source.txt`, and exposes it as `/usr/local/bin/salmon`.
+During a cross-architecture Buildx build, checksum and provenance checks still
+run, but target-binary execution is deferred to runtime smoke. Native builds
+run only the stable version, ordinary-help, provenance, and `ldd` build-time
+checks; real index and quantification paths remain runtime-only.
 
 Salmon 2 is a from-scratch Rust rewrite. It keeps the core
 `salmon index` -> `salmon quant` -> `quant.sf` workflow and downstream
@@ -302,12 +307,20 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.5.0 keeps `index_version = 1`; upstream requires no index rebuild when
-moving from 2.4.1 and preserves Salmon 2 quantification output formats. Rebuild
-indices made by Salmon 2.0.x or older C++ / pufferfish versions. Standard
+Salmon 2.5.1 keeps `index_version = 1`; upstream requires no index rebuild when
+moving from 2.5.0 or 2.4.1 and preserves Salmon 2 quantification output formats.
+Rebuild indices made by Salmon 2.0.x or older C++ / pufferfish versions. Standard
 outputs such as `quant.sf`, `cmd_info.json`, `lib_format_counts.json`, and
 `aux_info/meta_info.json` remain suitable for downstream consumers including
 tximport and tximeta.
+
+Version 2.5.1 is a dependency and scheduler-hardening update. It replaces the
+adaptive mapping pool used in 2.5.0 with a fixed maximum worker set: workers
+above the current target park at batch boundaries and wake when the target
+grows, so no worker is created after startup and the configured ceiling is
+structural. Parked workers release record buffers. Upstream reports unchanged
+quantification results, identical mapped counts across modes, byte-identical
+serial/parallel `quant.sf` under `--deterministic`, and no index rebuild.
 
 Version 2.5.0 makes `-p` a shared execution-slot budget for mapping and gzip
 decoding. It adds adaptive decoder scheduling, `--decoder`, `--threadPolicy`,
@@ -356,7 +369,7 @@ bundle reference transcriptomes, genomes, decoy lists, annotation files,
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.5.0` runtime version and top-level help
+- `salmon 2.5.1` runtime version, embedded source identity, and top-level help
 - no-op compatibility behavior for `--no-version-check`
 - help for `index`, `quant`, `quantmerge`, and `debug-map`, including the
   `sshashTmpDir`, `ramLimit`, `decoder`, `threadPolicy`, `writeRad`,
@@ -369,6 +382,9 @@ The smoke tests are independent and run without network access. They check:
   with absolute processed, mapped, and `NumReads` mass assertions; the
   single-end case uses misleading filenames, an explicit serial decoder, a
   validated thread-policy JSON file, and a gzip-compressed gene map
+- two 200-record, eight-slot, forced-parallel deterministic quantifications;
+  the smoke asserts the parallel execution plan, absolute processed/mapped
+  counts, read-mass conservation, and byte-identical repeated `quant.sf`
 - a tiny `quant --sketch` run that writes `sketch_quant/quant.sf`
 - a transcriptome-SAM alignment-mode regression using `U`, `SF`, and `SR`,
   preserving the genuine single-end strandedness regression coverage
@@ -391,9 +407,9 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.5.0>
-- Release notes: <https://github.com/COMBINE-lab/salmon/blob/v2.5.0/docs/release-notes-2.5.0.md>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.5.0/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.5.1>
+- Release notes: <https://github.com/COMBINE-lab/salmon/blob/v2.5.1/docs/release-notes-2.5.1.md>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.5.1/MIGRATION.md>
 - TAFFISH app packaging license: Apache-2.0
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods

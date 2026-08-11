@@ -1,7 +1,7 @@
 [package]
 name = "salmon"
 kind = "tool"
-version = "2.5.0"
+version = "2.5.1"
 release = 1
 license = "Apache-2.0"
 main = "src/main.taf"
@@ -17,15 +17,15 @@ pipe = true
 command_mode = true
 
 [container]
-image = "ghcr.io/taffish/salmon:2.5.0-r1"
+image = "ghcr.io/taffish/salmon:2.5.1-r1"
 dockerfile = "docker/Dockerfile"
 build_platforms = "linux/amd64,linux/arm64"
 
 [meta]
 domain = "bio"
 categories = ["rna-seq", "transcriptomics", "quantification", "alignment", "indexing"]
-keywords = ["salmon", "rna-seq", "transcript abundance", "selective alignment", "sketch", "sshash", "piscem", "quant", "quantmerge", "adaptive threading"]
-description = "Salmon transcript-level RNA-seq quantification with the Salmon 2 Rust CLI, selective-alignment and sketch modes, adaptive compressed-input scheduling, RAD workflows, mapping export, alignment-based quantification, and quantification merging."
+keywords = ["salmon", "rna-seq", "transcript abundance", "selective alignment", "sketch", "sshash", "piscem", "quant", "quantmerge", "adaptive threading", "bounded worker pool"]
+description = "Salmon transcript-level RNA-seq quantification with the Salmon 2 Rust CLI, selective-alignment and sketch modes, bounded adaptive compressed-input scheduling, RAD workflows, mapping export, alignment-based quantification, and quantification merging."
 
 [upstream]
 name = "Salmon"
@@ -33,10 +33,10 @@ type = "github"
 repo = "COMBINE-lab/salmon"
 homepage = "https://combine-lab.github.io/salmon/"
 manual = "https://combine-lab.github.io/salmon/"
-release_url = "https://github.com/COMBINE-lab/salmon/releases/tag/v2.5.0"
-downloads = "https://github.com/COMBINE-lab/salmon/releases/download/v2.5.0/salmon-cli-x86_64-unknown-linux-gnu.tar.xz; https://github.com/COMBINE-lab/salmon/releases/download/v2.5.0/salmon-cli-aarch64-unknown-linux-gnu.tar.xz"
-version = "2.5.0"
-commit = "5a97c176bf13a64fa68d7ccf0ef4b5820a601fb6"
+release_url = "https://github.com/COMBINE-lab/salmon/releases/tag/v2.5.1"
+downloads = "https://github.com/COMBINE-lab/salmon/releases/download/v2.5.1/salmon-cli-x86_64-unknown-linux-gnu.tar.xz; https://github.com/COMBINE-lab/salmon/releases/download/v2.5.1/salmon-cli-aarch64-unknown-linux-gnu.tar.xz"
+version = "2.5.1"
+commit = "c360459bbf16e649a5c10c097e59f3c72e6b2e3c"
 license = "BSD-3-Clause"
 citation = "Patro et al. 2017, Nature Methods"
 doi = "10.1038/nmeth.4197"
@@ -47,5 +47,5 @@ strip_prefix = "v"
 [smoke]
 backend = "docker"
 timeout = 300
-exist = ["salmon", "ldd", "locale", "ps", "gzip", "od", "awk", "sh"]
-test = ["sh /opt/salmon/share/salmon-smoke.sh interfaces", "sh /opt/salmon/share/salmon-smoke.sh index", "sh /opt/salmon/share/salmon-smoke.sh quant", "sh /opt/salmon/share/salmon-smoke.sh sketch", "sh /opt/salmon/share/salmon-smoke.sh merge", "sh /opt/salmon/share/salmon-smoke.sh alevin", "sh /opt/salmon/share/salmon-smoke.sh alignment", "sh /opt/salmon/share/salmon-smoke.sh genome", "sh /opt/salmon/share/salmon-smoke.sh accel", "sh /opt/salmon/share/salmon-smoke.sh bam", "sh /opt/salmon/share/salmon-smoke.sh rad", "sh /opt/salmon/share/salmon-smoke.sh deterministic"]
+exist = ["salmon", "ldd", "locale", "ps", "gzip", "od", "awk", "cmp", "sh"]
+test = ["sh /opt/salmon/share/salmon-smoke.sh interfaces", "sh /opt/salmon/share/salmon-smoke.sh index", "sh /opt/salmon/share/salmon-smoke.sh quant", "sh /opt/salmon/share/salmon-smoke.sh pool", "sh /opt/salmon/share/salmon-smoke.sh sketch", "sh /opt/salmon/share/salmon-smoke.sh merge", "sh /opt/salmon/share/salmon-smoke.sh alevin", "sh /opt/salmon/share/salmon-smoke.sh alignment", "sh /opt/salmon/share/salmon-smoke.sh genome", "sh /opt/salmon/share/salmon-smoke.sh accel", "sh /opt/salmon/share/salmon-smoke.sh bam", "sh /opt/salmon/share/salmon-smoke.sh rad", "sh /opt/salmon/share/salmon-smoke.sh deterministic"]

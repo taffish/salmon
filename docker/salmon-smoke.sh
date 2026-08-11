@@ -3,7 +3,7 @@
 set -eu
 
 mode=${1:-all}
-expected_version=${SALMON_SMOKE_VERSION:-2.5.0}
+expected_version=${SALMON_SMOKE_VERSION:-2.5.1}
 work="/tmp/taf-salmon-smoke-${mode}"
 
 cleanup() {
@@ -75,17 +75,10 @@ smoke_buildtime() {
     grep -F 'libgcc_s.so' "$work/salmon.ldd" >/dev/null
     grep -F 'libc.so' "$work/salmon.ldd" >/dev/null
     ! grep -F 'not found' "$work/salmon.ldd" >/dev/null
-
-    write_reads_fixture
-    build_index
-    test -s "$work/idx/info.json"
-    test -s "$work/idx/index.ssi"
-    test -s "$work/idx/index.ctab"
-    grep -F "\"salmon_version\": \"${expected_version}\"" "$work/idx/info.json" >/dev/null
-    salmon --no-version-check quant \
-        -i "$work/idx" -l A -r "$work/reads.fq" \
-        -o "$work/quant" -p 1 --quiet > "$work/quant.log" 2>&1
-    assert_basic_quant "$work/quant"
+    grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
+    grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
+    grep -F 'commit=c360459bbf16e649a5c10c097e59f3c72e6b2e3c' \
+        /opt/salmon/share/source.txt >/dev/null
 }
 
 smoke_interfaces() {
@@ -96,6 +89,11 @@ smoke_interfaces() {
     command -v gzip >/dev/null
     command -v od >/dev/null
     command -v awk >/dev/null
+    command -v cmp >/dev/null
+    grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
+    grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
+    grep -F 'commit=c360459bbf16e649a5c10c097e59f3c72e6b2e3c' \
+        /opt/salmon/share/source.txt >/dev/null
     salmon --help 2>&1 | grep -F 'RNA-seq transcript quantification' >/dev/null
     ! salmon --help 2>&1 | grep -F '(Rust port)' >/dev/null
     ! salmon --help 2>&1 | grep -F 'alevin' >/dev/null
@@ -175,6 +173,36 @@ EOF
         -1 "$work/reads_1.fq.gz" -2 "$work/reads_2.fq.gz" \
         -o "$work/paired" -p 1 --quiet > "$work/paired.log" 2>&1
     assert_basic_quant "$work/paired" 2
+}
+
+smoke_pool() {
+    write_reads_fixture
+    build_index
+    : > "$work/pool.fq"
+    record=1
+    while [ "$record" -le 200 ]; do
+        printf '@pool%s\nACGTACGTACGTACGTACGT\n+\nFFFFFFFFFFFFFFFFFFFF\n' \
+            "$record" >> "$work/pool.fq"
+        record=$((record + 1))
+    done
+    gzip -c "$work/pool.fq" > "$work/pool.fq.gz"
+
+    iteration=1
+    while [ "$iteration" -le 2 ]; do
+        output="$work/pool-${iteration}"
+        salmon --no-version-check quant \
+            -i "$work/idx" -l A -r "$work/pool.fq.gz" \
+            -o "$output" -p 8 --decoder parallel --deterministic \
+            > "$work/pool-${iteration}.log" 2>&1
+        assert_basic_quant "$output" 200
+        grep -F 'decoder selected by request: parallel' \
+            "$work/pool-${iteration}.log" >/dev/null
+        grep -F 'thread execution plan' "$work/pool-${iteration}.log" >/dev/null
+        grep -F 'mapping reads (selective-alignment mode, 8 threads)' \
+            "$work/pool-${iteration}.log" >/dev/null
+        iteration=$((iteration + 1))
+    done
+    cmp "$work/pool-1/quant.sf" "$work/pool-2/quant.sf"
 }
 
 smoke_sketch() {
@@ -332,6 +360,7 @@ run_mode() {
         interfaces) smoke_interfaces ;;
         index) smoke_index ;;
         quant) smoke_quant ;;
+        pool) smoke_pool ;;
         sketch) smoke_sketch ;;
         merge) smoke_merge ;;
         alevin) smoke_alevin ;;
@@ -349,7 +378,7 @@ run_mode() {
 }
 
 if [ "$mode" = all ]; then
-    for smoke_mode in interfaces index quant sketch merge alevin alignment genome accel bam rad deterministic; do
+    for smoke_mode in interfaces index quant pool sketch merge alevin alignment genome accel bam rad deterministic; do
         sh "$0" "$smoke_mode"
     done
 else

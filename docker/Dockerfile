@@ -1,9 +1,14 @@
+ARG BUILDARCH
+ARG TARGETARCH
+
 FROM debian:13-slim AS fetcher
 
+ARG BUILDARCH
 ARG TARGETARCH
-ARG SALMON_VERSION=2.5.0
-ARG SALMON_X86_64_SHA256=e09d9134270e7f72bac5520d01bce2d77b96ed0af4ea080fcf635d6b35d2ce46
-ARG SALMON_AARCH64_SHA256=da369b7eebc663c07efe73ea25b0bda12ccb3336b5eeecbb134e8e2336343bb6
+ARG SALMON_VERSION=2.5.1
+ARG SALMON_COMMIT=c360459bbf16e649a5c10c097e59f3c72e6b2e3c
+ARG SALMON_X86_64_SHA256=6ad2a01b2022092f88f4c95601d19751e594dd3aa7be77ee7c11c1abf4842cbe
+ARG SALMON_AARCH64_SHA256=8d4829a2132e5f45f0091a59ea309ab2f874ae2ecdab2df6f7c3c47fd3eab7f8
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -48,11 +53,27 @@ RUN set -eux; \
     mkdir -p /opt/salmon; \
     tar -xJf /tmp/salmon.tar.xz -C /opt/salmon --strip-components=1; \
     test -x /opt/salmon/salmon; \
-    test "$(/opt/salmon/salmon --version)" = "salmon ${SALMON_VERSION}"
+    mkdir -p /opt/salmon/share; \
+    printf '%s\n' \
+      "upstream=COMBINE-lab/salmon" \
+      "version=${SALMON_VERSION}" \
+      "commit=${SALMON_COMMIT}" \
+      "asset=${salmon_asset}" \
+      "sha256=${salmon_sha256}" \
+      "targetarch=${TARGETARCH}" \
+      > /opt/salmon/share/source.txt; \
+    grep -F "version=${SALMON_VERSION}" /opt/salmon/share/source.txt; \
+    if [ -n "${BUILDARCH}" ] && [ "${BUILDARCH}" = "${TARGETARCH}" ]; then \
+      test "$(/opt/salmon/salmon --version)" = "salmon ${SALMON_VERSION}"; \
+    else \
+      echo "cross-architecture fetch: skip target binary execution (${BUILDARCH:-unknown} -> ${TARGETARCH})"; \
+    fi
 
 FROM debian:13-slim
 
-ARG SALMON_VERSION=2.5.0
+ARG BUILDARCH
+ARG TARGETARCH
+ARG SALMON_VERSION=2.5.1
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -88,7 +109,13 @@ RUN set -eux; \
     chmod 0755 /opt/salmon/share/salmon-smoke.sh
 
 RUN set -eux; \
-    SALMON_SMOKE_VERSION="${SALMON_VERSION}" \
-        sh /opt/salmon/share/salmon-smoke.sh buildtime
+    grep -F "version=${SALMON_VERSION}" /opt/salmon/share/source.txt; \
+    grep -F "targetarch=${TARGETARCH}" /opt/salmon/share/source.txt; \
+    if [ -n "${BUILDARCH}" ] && [ "${BUILDARCH}" = "${TARGETARCH}" ]; then \
+      SALMON_SMOKE_VERSION="${SALMON_VERSION}" \
+          sh /opt/salmon/share/salmon-smoke.sh buildtime; \
+    else \
+      echo "cross-architecture final image: defer runtime smoke (${BUILDARCH:-unknown} -> ${TARGETARCH})"; \
+    fi
 
 WORKDIR /root
