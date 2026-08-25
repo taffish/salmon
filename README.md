@@ -10,14 +10,14 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.5.1-r1` |
-| container image | `ghcr.io/taffish/salmon:2.5.1-r1` |
+| TAFFISH version | `2.6.0-r1` |
+| container image | `ghcr.io/taffish/salmon:2.6.0-r1` |
 | TAFFISH app license | `Apache-2.0` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.5.1` |
-| upstream commit | `c360459bbf16e649a5c10c097e59f3c72e6b2e3c` |
+| upstream release | `v2.6.0` |
+| upstream commit | `3e5ccb29caa7c25d72f3b17cc3cd21ddbb6dac7f` |
 | upstream license | `BSD-3-Clause` |
-| runtime version | `salmon 2.5.1` |
+| runtime version | `salmon 2.6.0` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## Installation
@@ -41,12 +41,12 @@ needs architecture emulation for `linux/amd64` or `linux/arm64`.
 
 ## What Is Included
 
-This app packages the official Salmon `v2.5.1` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.6.0` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `6ad2a01b2022092f88f4c95601d19751e594dd3aa7be77ee7c11c1abf4842cbe`
+  - SHA256: `898b9114c9901213d486ed5aac8cf9e9b8b6d5a52f0ed3e61ec441a044090ca5`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `8d4829a2132e5f45f0091a59ea309ab2f874ae2ecdab2df6f7c3c47fd3eab7f8`
+  - SHA256: `a642ddaeb4ba00f77ab5910589cbc675f7021f2bf9208858ae1b6d3d547391d3`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
@@ -62,7 +62,9 @@ Salmon 2 is a from-scratch Rust rewrite. It keeps the core
 quantification table formats, but it is a new major version with intentional
 breaking changes.
 
-The runtime image uses `debian:13-slim` and the official Linux GNU binary. The
+The runtime image uses the pinned multi-architecture `debian:13-slim` manifest
+`sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132`
+and the official Linux GNU binary. The
 v2 binary is much lighter than the old C++ distribution and depends only on the
 standard GNU runtime libraries available in Debian 13, notably `libgcc_s`, `libm`,
 and `libc`. The runtime also includes `procps`, matching upstream's workflow
@@ -84,6 +86,20 @@ taf-salmon -- --version
 taf-salmon salmon --help
 taf-salmon salmon --version
 ```
+
+Current TAFFISH automatic command mode reconstructs a shell command line. If a
+path contains whitespace, ordinary outer-shell quoting alone is insufficient;
+include literal single quotes inside that argument:
+
+```sh
+taf-salmon salmon quant \
+  -i "'indexes/salmon index'" -l A \
+  -r "'reads/sample 1.fq.gz'" \
+  -o "'results/sample 1'" -p 8
+```
+
+The inner single quotes are intentional. Prefer whitespace-free paths when
+possible.
 
 Build a Salmon 2 index:
 
@@ -119,7 +135,7 @@ taf-salmon salmon quant \
 ```
 
 For compressed reads, `-p` is the shared execution-slot budget for decoding
-and mapping. Salmon 2.5 chooses a serial or parallel decoder automatically. To
+and mapping. Salmon chooses a serial or parallel decoder automatically. To
 override that decision or supply a reviewed policy file:
 
 ```sh
@@ -195,17 +211,27 @@ taf-salmon salmon quant \
 `--writeBam` and `--writeSam` preserve Salmon's retained mappings. They do not
 sort or index the output; use a downstream alignment tool when that is needed.
 
-Run deterministic FASTQ quantification:
+Salmon 2.6 performs deterministic FASTQ quantification by default:
 
 ```sh
 taf-salmon salmon quant \
   -i salmon_index \
   -l A \
   -r reads.fq.gz \
-  --deterministic \
   -o sample_deterministic_quant \
   -p 8
 ```
+
+The retained `--deterministic` flag is accepted as a no-op for existing scripts.
+`quant.sf` is byte-identical across runs and thread counts. The deprecated
+`--online` option selects the pre-2.6 one-pass path and is scheduled for removal
+in Salmon 2.7.
+
+The default path writes an lz4-compressed intermediate RAD and deletes it on
+success. Use `--radScratchDir /path/to/scratch` to place that temporary file on
+another volume, or `--radCompress zstd` for stronger compression. `--skipQuant`
+stops after mapping and keeps the RAD under the output directory as the run's
+deliverable; it does not write `quant.sf`.
 
 Enable the opt-in SQUAREM or DAAREM EM/VBEM accelerator for slow-mixing
 problems or bootstrap-heavy workloads:
@@ -289,7 +315,12 @@ Packaged upstream command:
 - `salmon quant --rad`: quantify a RAD file directly
 - `salmon quant --fldPolicy baked|derive|prior`: select the fragment-length
   distribution source for RAD quantification
-- `salmon quant --deterministic`: run reproducible FASTQ quantification
+- plain `salmon quant`: run deterministic two-phase quantification by default
+- `salmon quant --deterministic`: accepted no-op compatibility spelling
+- `salmon quant --online`: use the deprecated pre-2.6 one-pass path
+- `salmon quant --radScratchDir`: relocate the temporary intermediate RAD
+- `salmon quant --radCompress lz4|zstd|none`: select RAD compression
+- `salmon quant --skipQuant`: stop after mapping and keep the output RAD
 - `salmon quant --writeBam`: write unsorted BGZF BAM mappings
 - `salmon quant --writeSam`: visible alias of the mapping SAM export
 - `salmon quant --bamCompressThreads`: control BAM compression threads
@@ -307,12 +338,23 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.5.1 keeps `index_version = 1`; upstream requires no index rebuild when
-moving from 2.5.0 or 2.4.1 and preserves Salmon 2 quantification output formats.
-Rebuild indices made by Salmon 2.0.x or older C++ / pufferfish versions. Standard
-outputs such as `quant.sf`, `cmd_info.json`, `lib_format_counts.json`, and
-`aux_info/meta_info.json` remain suitable for downstream consumers including
-tximport and tximeta.
+Salmon 2.6.0 keeps `index_version = 1` and requires no index rebuild from 2.5.1.
+Rebuild indices made by Salmon 2.0.x or older C++ / pufferfish versions.
+
+Version 2.6.0 makes deterministic two-phase quantification the default for
+selective-alignment, sketch, and alignment input. `aux_info/meta_info.json`
+records `inference_path` as `deterministic`, `online`, or `none`; the last value
+is used for mapping-only `--skipQuant`. The default intermediate RAD is deleted
+on success. Upstream estimates temporary lz4 RAD usage at roughly 45 MB per
+million fragments in sketch mode and 55 MB per million fragments in selective
+alignment, with the exact size depending on multimapping.
+
+The release also restores and corrects library-format accounting, removes decoy
+rows from RAD-based `quant.sf`, reports applied and detected library types
+separately, fixes metadata placeholders, and uses BAM `AS` tags by default in
+alignment mode. Pipelines that parse `quant.sf` by row number, interpret
+`library_types` as the detected type, or enforce thresholds on absolute
+compatible-fragment counts should review the upstream 2.6.0 migration notes.
 
 Version 2.5.1 is a dependency and scheduler-hardening update. It replaces the
 adaptive mapping pool used in 2.5.0 with a fixed maximum worker set: workers
@@ -365,15 +407,25 @@ license, GNU runtime libraries, `procps`, and CA certificates. It does not
 bundle reference transcriptomes, genomes, decoy lists, annotation files,
 `piscem`, `alevin-fry`, `simpleaf`, `oarfish`, or external aligners.
 
+Reference transcriptomes, genomes, decoy lists, annotations, reads, alignments,
+and RAD files are project-specific inputs rather than a fixed Salmon database.
+Salmon does not provide a production database downloader that should be mapped
+to a shared TAFFISH database path, so a database installation helper and
+automatic database mount are not applicable. Users mount or pass their own
+project inputs explicitly. The official 2.6.0 workspace and release assets
+provide the CLI only; no official local GUI, viewer extra, plugin GUI, or
+desktop companion is part of this app's upstream distribution.
+
 ## Smoke Coverage
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.5.1` runtime version, embedded source identity, and top-level help
+- `salmon 2.6.0` runtime version, embedded source identity, and top-level help
 - no-op compatibility behavior for `--no-version-check`
 - help for `index`, `quant`, `quantmerge`, and `debug-map`, including the
   `sshashTmpDir`, `ramLimit`, `decoder`, `threadPolicy`, `writeRad`,
-  `deterministic`, genome annotation, `writeBam`, `writeSam`,
+  deterministic-default, `online`, `radScratchDir`, `radCompress`, `skipQuant`,
+  `errorModel`, genome annotation, `writeBam`, `writeSam`,
   `bamCompressThreads`, `fldPolicy`, and `emAccel`
 - dynamic library resolution through `ldd`
 - a tiny Salmon 2 index build that writes `info.json`, `index.ssi`, and
@@ -382,9 +434,9 @@ The smoke tests are independent and run without network access. They check:
   with absolute processed, mapped, and `NumReads` mass assertions; the
   single-end case uses misleading filenames, an explicit serial decoder, a
   validated thread-policy JSON file, and a gzip-compressed gene map
-- two 200-record, eight-slot, forced-parallel deterministic quantifications;
+- one single-thread and two eight-slot forced-parallel default quantifications;
   the smoke asserts the parallel execution plan, absolute processed/mapped
-  counts, read-mass conservation, and byte-identical repeated `quant.sf`
+  counts, read-mass conservation, and byte-identical cross-thread/repeated `quant.sf`
 - a tiny `quant --sketch` run that writes `sketch_quant/quant.sf`
 - a transcriptome-SAM alignment-mode regression using `U`, `SF`, and `SR`,
   preserving the genuine single-end strandedness regression coverage
@@ -395,7 +447,10 @@ The smoke tests are independent and run without network access. They check:
   and BAM-input re-quantification
 - eight low-thread RAD re-quantifications with absolute processed/mapped count
   assertions and `frag_length_source = prior`
-- deterministic quantification with absolute processed/mapped count assertions
+- default deterministic, no-op `--deterministic`, deprecated `--online`, and
+  conflicting-path behavior with exact `inference_path` assertions
+- mapping-only `--skipQuant` with output-RAD retention and scratch cleanup
+- zstd-compressed RAD writing followed by direct RAD quantification
 - `quantmerge` on two synthetic `quant.sf` directories
 - the upstream `alevin` removal and migration message
 
@@ -407,9 +462,9 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.5.1>
-- Release notes: <https://github.com/COMBINE-lab/salmon/blob/v2.5.1/docs/release-notes-2.5.1.md>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.5.1/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.6.0>
+- Release notes: <https://github.com/COMBINE-lab/salmon/blob/v2.6.0/docs/release-notes-2.6.0.md>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.6.0/MIGRATION.md>
 - TAFFISH app packaging license: Apache-2.0
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods

@@ -3,7 +3,7 @@
 set -eu
 
 mode=${1:-all}
-expected_version=${SALMON_SMOKE_VERSION:-2.5.1}
+expected_version=${SALMON_SMOKE_VERSION:-2.6.0}
 work="/tmp/taf-salmon-smoke-${mode}"
 
 cleanup() {
@@ -50,12 +50,15 @@ build_index() {
 assert_basic_quant() {
     output=$1
     expected=${2:-3}
+    inference=${3:-deterministic}
     test -s "$output/quant.sf"
     grep -F 'Name' "$output/quant.sf" >/dev/null
     grep -F 'tx1' "$output/quant.sf" >/dev/null
     grep -F 'tx2' "$output/quant.sf" >/dev/null
     grep -F "\"num_processed\": ${expected}" "$output/aux_info/meta_info.json" >/dev/null
     grep -F "\"num_mapped\": ${expected}" "$output/aux_info/meta_info.json" >/dev/null
+    grep -F "\"inference_path\": \"${inference}\"" \
+        "$output/aux_info/meta_info.json" >/dev/null
     awk -v expected="$expected" '
         NR > 1 { total += $5 }
         END {
@@ -77,7 +80,7 @@ smoke_buildtime() {
     ! grep -F 'not found' "$work/salmon.ldd" >/dev/null
     grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
     grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=c360459bbf16e649a5c10c097e59f3c72e6b2e3c' \
+    grep -F 'commit=3e5ccb29caa7c25d72f3b17cc3cd21ddbb6dac7f' \
         /opt/salmon/share/source.txt >/dev/null
 }
 
@@ -92,7 +95,7 @@ smoke_interfaces() {
     command -v cmp >/dev/null
     grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
     grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=c360459bbf16e649a5c10c097e59f3c72e6b2e3c' \
+    grep -F 'commit=3e5ccb29caa7c25d72f3b17cc3cd21ddbb6dac7f' \
         /opt/salmon/share/source.txt >/dev/null
     salmon --help 2>&1 | grep -F 'RNA-seq transcript quantification' >/dev/null
     ! salmon --help 2>&1 | grep -F '(Rust port)' >/dev/null
@@ -104,6 +107,12 @@ smoke_interfaces() {
     salmon --no-version-check quant --help 2>&1 | grep -F 'Quantify transcript abundances' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F 'writeRad' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F 'deterministic' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F 'The default since 2.6.0' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F -- '--online' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F 'radScratchDir' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F 'radCompress' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F 'skipQuant' >/dev/null
+    salmon --no-version-check quant --help 2>&1 | grep -F 'errorModel' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F 'annotation' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F -- '--decoder' >/dev/null
     salmon --no-version-check quant --help 2>&1 | grep -F -- '--threadPolicy' >/dev/null
@@ -187,12 +196,18 @@ smoke_pool() {
     done
     gzip -c "$work/pool.fq" > "$work/pool.fq.gz"
 
+    salmon --no-version-check quant \
+        -i "$work/idx" -l A -r "$work/pool.fq.gz" \
+        -o "$work/pool-one" -p 1 --decoder serial \
+        > "$work/pool-one.log" 2>&1
+    assert_basic_quant "$work/pool-one" 200
+
     iteration=1
     while [ "$iteration" -le 2 ]; do
         output="$work/pool-${iteration}"
         salmon --no-version-check quant \
             -i "$work/idx" -l A -r "$work/pool.fq.gz" \
-            -o "$output" -p 8 --decoder parallel --deterministic \
+            -o "$output" -p 8 --decoder parallel \
             > "$work/pool-${iteration}.log" 2>&1
         assert_basic_quant "$output" 200
         grep -F 'decoder selected by request: parallel' \
@@ -202,6 +217,7 @@ smoke_pool() {
             "$work/pool-${iteration}.log" >/dev/null
         iteration=$((iteration + 1))
     done
+    cmp "$work/pool-one/quant.sf" "$work/pool-1/quant.sf"
     cmp "$work/pool-1/quant.sf" "$work/pool-2/quant.sf"
 }
 
@@ -276,7 +292,9 @@ EOF
     grep -F 'tx2' "$work/genome/quant.sf" >/dev/null
     grep -F '"num_processed": 2' "$work/genome/aux_info/meta_info.json" >/dev/null
     grep -F '"num_mapped": 2' "$work/genome/aux_info/meta_info.json" >/dev/null
-    grep -F '"frag_length_source": "rad_baked_prior"' \
+    grep -F '"frag_length_source": "prior"' \
+        "$work/genome/aux_info/meta_info.json" >/dev/null
+    grep -F '"inference_path": "deterministic"' \
         "$work/genome/aux_info/meta_info.json" >/dev/null
 }
 
@@ -324,7 +342,8 @@ smoke_rad() {
     salmon --no-version-check quant \
         -i "$work/idx" -l A -r "$work/reads.fq" \
         -o "$work/rad-write" -p 1 \
-        --writeRad "$work/mappings.rad" --quiet > "$work/rad-write.log" 2>&1
+        --writeRad "$work/mappings.rad" --radCompress zstd --quiet \
+        > "$work/rad-write.log" 2>&1
     test -s "$work/mappings.rad"
     assert_basic_quant "$work/rad-write"
 
@@ -347,11 +366,49 @@ smoke_deterministic() {
     build_index
     salmon --no-version-check quant \
         -i "$work/idx" -l A -r "$work/reads.fq" \
-        -o "$work/deterministic" -p 1 --deterministic --quiet \
-        > "$work/deterministic.log" 2>&1
-    assert_basic_quant "$work/deterministic"
-    grep -F '"frag_length_source": "rad_baked_prior"' \
-        "$work/deterministic/aux_info/meta_info.json" >/dev/null
+        -o "$work/default" -p 1 --quiet > "$work/default.log" 2>&1
+    salmon --no-version-check quant \
+        -i "$work/idx" -l A -r "$work/reads.fq" \
+        -o "$work/flagged" -p 1 --deterministic --quiet \
+        > "$work/flagged.log" 2>&1
+    salmon --no-version-check quant \
+        -i "$work/idx" -l A -r "$work/reads.fq" \
+        -o "$work/online" -p 1 --online \
+        > "$work/online.log" 2>&1
+    assert_basic_quant "$work/default"
+    assert_basic_quant "$work/flagged"
+    assert_basic_quant "$work/online" 3 online
+    cmp "$work/default/quant.sf" "$work/flagged/quant.sf"
+    grep -F '"frag_length_source": "prior"' \
+        "$work/default/aux_info/meta_info.json" >/dev/null
+    grep -Fi 'deprecated' "$work/online.log" >/dev/null
+    if find "$work/default" "$work/flagged" -type f -name '*.rad' | grep . >/dev/null; then
+        return 1
+    fi
+
+    if salmon --no-version-check quant \
+        -i "$work/idx" -l A -r "$work/reads.fq" \
+        -o "$work/conflict" -p 1 --online --deterministic \
+        > "$work/conflict.log" 2>&1; then
+        return 1
+    fi
+    grep -F "cannot be used with '--deterministic'" "$work/conflict.log" >/dev/null
+}
+
+smoke_skip() {
+    write_reads_fixture
+    build_index
+    mkdir -p "$work/scratch"
+    salmon --no-version-check quant \
+        -i "$work/idx" -l A -r "$work/reads.fq" \
+        -o "$work/skip" -p 1 --skipQuant \
+        --radScratchDir "$work/scratch" --quiet > "$work/skip.log" 2>&1
+    test ! -e "$work/skip/quant.sf"
+    test -s "$work/skip/aux_info/meta_info.json"
+    grep -F '"inference_path": "none"' \
+        "$work/skip/aux_info/meta_info.json" >/dev/null
+    test "$(find "$work/skip" -maxdepth 1 -type f -name '*.rad' | wc -l)" -eq 1
+    test "$(find "$work/scratch" -mindepth 1 -print | wc -l)" -eq 0
 }
 
 run_mode() {
@@ -370,6 +427,7 @@ run_mode() {
         bam) smoke_bam ;;
         rad) smoke_rad ;;
         deterministic) smoke_deterministic ;;
+        skip) smoke_skip ;;
         *)
             echo "unknown smoke mode: $1" >&2
             return 2
@@ -378,7 +436,7 @@ run_mode() {
 }
 
 if [ "$mode" = all ]; then
-    for smoke_mode in interfaces index quant pool sketch merge alevin alignment genome accel bam rad deterministic; do
+    for smoke_mode in interfaces index quant pool sketch merge alevin alignment genome accel bam rad deterministic skip; do
         sh "$0" "$smoke_mode"
     done
 else
