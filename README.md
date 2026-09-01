@@ -10,14 +10,14 @@ COMBINE-lab.
 | name | `salmon` |
 | command | `taf-salmon` |
 | kind | `tool` |
-| TAFFISH version | `2.6.0-r1` |
-| container image | `ghcr.io/taffish/salmon:2.6.0-r1` |
+| TAFFISH version | `2.7.0-r1` |
+| container image | `ghcr.io/taffish/salmon:2.7.0-r1` |
 | TAFFISH app license | `Apache-2.0` |
 | upstream | `COMBINE-lab/salmon` |
-| upstream release | `v2.6.0` |
-| upstream commit | `3e5ccb29caa7c25d72f3b17cc3cd21ddbb6dac7f` |
+| upstream release | `v2.7.0` |
+| upstream commit | `d3be8b31d31242683c01fc5510c48fbd8bc917fb` |
 | upstream license | `BSD-3-Clause` |
-| runtime version | `salmon 2.6.0` |
+| runtime version | `salmon 2.7.0` |
 | native platforms | `linux/amd64`, `linux/arm64` |
 
 ## Installation
@@ -32,21 +32,24 @@ taf install salmon
 TAFFISH uses the configured container backend. To select one for a run:
 
 ```sh
-TAFFISH_CONTAINER_BACKEND=podman taf-salmon -- --version
 TAFFISH_CONTAINER_BACKEND=docker taf-salmon -- --version
+TAFFISH_CONTAINER_BACKEND=podman taf-salmon -- --version
+TAFFISH_CONTAINER_BACKEND=apptainer taf-salmon -- --version
 ```
 
 Both declared Linux platforms use native upstream binaries; neither backend
-needs architecture emulation for `linux/amd64` or `linux/arm64`.
+needs architecture emulation for `linux/amd64` or `linux/arm64`. Salmon is a
+backend-neutral CPU CLI, so no backend-specific GPU, device, port, network or
+mount argument is embedded in the wrapper.
 
 ## What Is Included
 
-This app packages the official Salmon `v2.6.0` Rust CLI Linux release binaries:
+This app packages the official Salmon `v2.7.0` Rust CLI Linux release binaries:
 
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz`
-  - SHA256: `898b9114c9901213d486ed5aac8cf9e9b8b6d5a52f0ed3e61ec441a044090ca5`
+  - SHA256: `5f42fcd70f270bc9ee8adee0c384fbb457f1606f792d36bb86e0dacf2e46e74a`
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz`
-  - SHA256: `a642ddaeb4ba00f77ab5910589cbc675f7021f2bf9208858ae1b6d3d547391d3`
+  - SHA256: `7273f7b50314416b0429b581c472bf1c99ff4d1af35448ab792e4752533fd073`
 
 The Dockerfile selects the correct upstream asset from Docker `TARGETARCH`,
 verifies the checksum, installs the upstream `salmon` binary under
@@ -100,6 +103,25 @@ taf-salmon salmon quant \
 
 The inner single quotes are intentional. Prefer whitespace-free paths when
 possible.
+
+### Rebuild pre-2.7 indexes
+
+Salmon 2.7.0 changes the on-disk index format from v1 to v2. Every index built
+by Salmon 2.6.0 or earlier must be rebuilt from its transcript FASTA and decoy
+list before quantification:
+
+```sh
+taf-salmon salmon index \
+  -t transcripts.fa \
+  -d decoys.txt \
+  -i salmon_index_v2 \
+  -k 31 \
+  -p 8
+```
+
+Omit `-d` when the reference has no decoy-name list. Salmon 2.7 rejects an old
+index with an actionable rebuild message; it does not silently reuse or convert
+the incompatible index in place.
 
 Build a Salmon 2 index:
 
@@ -224,8 +246,8 @@ taf-salmon salmon quant \
 
 The retained `--deterministic` flag is accepted as a no-op for existing scripts.
 `quant.sf` is byte-identical across runs and thread counts. The deprecated
-`--online` option selects the pre-2.6 one-pass path and is scheduled for removal
-in Salmon 2.7.
+`--online` option still selects the pre-2.6 one-pass path in Salmon 2.7.0; new
+workflows should use the deterministic default.
 
 The default path writes an lz4-compressed intermediate RAD and deletes it on
 success. Use `--radScratchDir /path/to/scratch` to place that temporary file on
@@ -338,8 +360,17 @@ information remains documented upstream and below.
 
 ## Compatibility Notes
 
-Salmon 2.6.0 keeps `index_version = 1` and requires no index rebuild from 2.5.1.
-Rebuild indices made by Salmon 2.0.x or older C++ / pufferfish versions.
+Salmon 2.7.0 writes `index_version = 2` and `sshash_format_version = 5` in
+`info.json`. All pre-2.7 Salmon indexes are format v1 and must be rebuilt.
+Salmon also rejects indexes that advertise a future format with an explicit
+upgrade message instead of falling through to a low-level I/O error.
+
+The v2 index adopts a unified canonical k-mer dictionary based on SSHash v6.
+Upstream reports about 23% lower peak RSS during GRCh38 cDNA index construction,
+8–13% fewer dictionary bytes, and faster sketch mapping. Against Salmon 2.6.0,
+upstream found byte-identical `quant.sf` and per-fragment RAD records on its
+validation sets; the compatibility break is the index representation, not the
+quantification result contract.
 
 Version 2.6.0 makes deterministic two-phase quantification the default for
 selective-alignment, sketch, and alignment input. `aux_info/meta_info.json`
@@ -412,15 +443,32 @@ and RAD files are project-specific inputs rather than a fixed Salmon database.
 Salmon does not provide a production database downloader that should be mapped
 to a shared TAFFISH database path, so a database installation helper and
 automatic database mount are not applicable. Users mount or pass their own
-project inputs explicitly. The official 2.6.0 workspace and release assets
+project inputs explicitly. The official 2.7.0 workspace and release assets
 provide the CLI only; no official local GUI, viewer extra, plugin GUI, or
 desktop companion is part of this app's upstream distribution.
+
+## Backend Capability Matrix
+
+| Capability | Docker | Podman | Apptainer |
+| --- | --- | --- | --- |
+| native `linux/amd64` image | supported | supported | supported when the site provides an amd64 SIF/runtime |
+| native `linux/arm64` image | supported | supported | supported when the site provides an arm64 SIF/runtime |
+| index, reads/alignment quant, RAD, merge | same wrapper | same wrapper | same wrapper |
+| project inputs and writable outputs | normal TAFFISH workdir/bind | normal TAFFISH workdir/bind | normal TAFFISH workdir/bind |
+| database/model auto-mount | N/A: no canonical external resource | N/A | N/A |
+| GPU/device/port/network option | N/A | N/A | N/A |
+
+The validation matrix for this candidate uses fresh offline Docker and Podman
+containers with normal and read-only roots, plus an actual read-only Apptainer
+SIF made from the same candidate OCI content. No backend writes the image tree;
+all index, scratch, and quantification output is confined to the command's
+writable work directory or an explicit user path.
 
 ## Smoke Coverage
 
 The smoke tests are independent and run without network access. They check:
 
-- `salmon 2.6.0` runtime version, embedded source identity, and top-level help
+- `salmon 2.7.0` runtime version, embedded source identity, and top-level help
 - no-op compatibility behavior for `--no-version-check`
 - help for `index`, `quant`, `quantmerge`, and `debug-map`, including the
   `sshashTmpDir`, `ramLimit`, `decoder`, `threadPolicy`, `writeRad`,
@@ -429,7 +477,10 @@ The smoke tests are independent and run without network access. They check:
   `bamCompressThreads`, `fldPolicy`, and `emAccel`
 - dynamic library resolution through `ldd`
 - a tiny Salmon 2 index build that writes `info.json`, `index.ssi`, and
-  `index.ctab`, and records `index_version = 1`
+  `index.ctab`, and records `index_version = 2` plus
+  `sshash_format_version = 5`
+- actionable rejection of a simulated pre-2.7 index and a simulated future
+  index format, without creating a misleading quantification output
 - gzip-compressed single-end and paired-end selective-alignment `quant` runs
   with absolute processed, mapped, and `NumReads` mass assertions; the
   single-end case uses misleading filenames, an explicit serial decoder, a
@@ -462,9 +513,9 @@ references and read sets.
 
 - Upstream repository: <https://github.com/COMBINE-lab/salmon>
 - Documentation: <https://combine-lab.github.io/salmon/>
-- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.6.0>
-- Release notes: <https://github.com/COMBINE-lab/salmon/blob/v2.6.0/docs/release-notes-2.6.0.md>
-- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.6.0/MIGRATION.md>
+- Release: <https://github.com/COMBINE-lab/salmon/releases/tag/v2.7.0>
+- Release notes: <https://github.com/COMBINE-lab/salmon/blob/v2.7.0/docs/release-notes-2.7.0.md>
+- Migration guide: <https://github.com/COMBINE-lab/salmon/blob/v2.7.0/MIGRATION.md>
 - TAFFISH app packaging license: Apache-2.0
 - Upstream license: BSD-3-Clause
 - Citation: Patro et al. 2017, Nature Methods

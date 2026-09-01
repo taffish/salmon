@@ -3,7 +3,7 @@
 set -eu
 
 mode=${1:-all}
-expected_version=${SALMON_SMOKE_VERSION:-2.6.0}
+expected_version=${SALMON_SMOKE_VERSION:-2.7.0}
 work="/tmp/taf-salmon-smoke-${mode}"
 
 cleanup() {
@@ -80,7 +80,7 @@ smoke_buildtime() {
     ! grep -F 'not found' "$work/salmon.ldd" >/dev/null
     grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
     grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=3e5ccb29caa7c25d72f3b17cc3cd21ddbb6dac7f' \
+    grep -F 'commit=d3be8b31d31242683c01fc5510c48fbd8bc917fb' \
         /opt/salmon/share/source.txt >/dev/null
 }
 
@@ -95,7 +95,7 @@ smoke_interfaces() {
     command -v cmp >/dev/null
     grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
     grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=3e5ccb29caa7c25d72f3b17cc3cd21ddbb6dac7f' \
+    grep -F 'commit=d3be8b31d31242683c01fc5510c48fbd8bc917fb' \
         /opt/salmon/share/source.txt >/dev/null
     salmon --help 2>&1 | grep -F 'RNA-seq transcript quantification' >/dev/null
     ! salmon --help 2>&1 | grep -F '(Rust port)' >/dev/null
@@ -133,8 +133,37 @@ smoke_index() {
     test -s "$work/idx/index.ssi"
     test -s "$work/idx/index.ctab"
     grep -F "\"salmon_version\": \"${expected_version}\"" "$work/idx/info.json" >/dev/null
-    grep -F '"index_version": 1' "$work/idx/info.json" >/dev/null
+    grep -F '"index_version": 2' "$work/idx/info.json" >/dev/null
+    grep -F '"sshash_format_version": 5' "$work/idx/info.json" >/dev/null
     grep -F '"num_refs": 2' "$work/idx/info.json" >/dev/null
+}
+
+smoke_compatibility() {
+    write_reads_fixture
+    build_index
+
+    cp -R "$work/idx" "$work/idx-old"
+    sed -i 's/"index_version": 2/"index_version": 1/' \
+        "$work/idx-old/info.json"
+    if salmon --no-version-check quant \
+        -i "$work/idx-old" -l A -r "$work/reads.fq" \
+        -o "$work/old-quant" -p 1 > "$work/old-index.log" 2>&1; then
+        return 1
+    fi
+    grep -F 'requires index format v2+' "$work/old-index.log" >/dev/null
+    grep -F 'rebuild it with' "$work/old-index.log" >/dev/null
+
+    cp -R "$work/idx" "$work/idx-future"
+    sed -i 's/"index_version": 2/"index_version": 999/' \
+        "$work/idx-future/info.json"
+    if salmon --no-version-check quant \
+        -i "$work/idx-future" -l A -r "$work/reads.fq" \
+        -o "$work/future-quant" -p 1 > "$work/future-index.log" 2>&1; then
+        return 1
+    fi
+    grep -F 'newer than this salmon understands' \
+        "$work/future-index.log" >/dev/null
+    grep -Fi 'upgrade salmon' "$work/future-index.log" >/dev/null
 }
 
 smoke_quant() {
@@ -416,6 +445,7 @@ run_mode() {
         buildtime) smoke_buildtime ;;
         interfaces) smoke_interfaces ;;
         index) smoke_index ;;
+        compatibility) smoke_compatibility ;;
         quant) smoke_quant ;;
         pool) smoke_pool ;;
         sketch) smoke_sketch ;;
@@ -436,7 +466,7 @@ run_mode() {
 }
 
 if [ "$mode" = all ]; then
-    for smoke_mode in interfaces index quant pool sketch merge alevin alignment genome accel bam rad deterministic skip; do
+    for smoke_mode in interfaces index compatibility quant pool sketch merge alevin alignment genome accel bam rad deterministic skip; do
         sh "$0" "$smoke_mode"
     done
 else

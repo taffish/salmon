@@ -1,35 +1,17 @@
-salmon 2.6.0-r1
+salmon 2.7.0-r1
 
-TAFFISH wrapper for Salmon v2.6.0 from COMBINE-lab.
-Salmon performs transcript-level RNA-seq quantification from reads,
-transcriptome alignments, genome alignments plus annotation, or RAD files.
-
-Install:
-  taf update
-  taf install salmon
+Purpose:
+  Build Salmon transcript indexes and quantify transcript abundance from
+  RNA-seq reads, alignments, or RAD files.
 
 Usage:
-  taf-salmon --help
-  taf-salmon --version
   taf-salmon -- --help
-  taf-salmon salmon index ...
-  taf-salmon salmon quant ...
-  taf-salmon salmon quantmerge ...
-  taf-salmon salmon debug-map ...
+  taf-salmon -- --version
+  taf-salmon salmon index [OPTIONS]
+  taf-salmon salmon quant [OPTIONS]
+  taf-salmon salmon quantmerge [OPTIONS]
 
-Wrapper Options:
-  --help       show this TAFFISH help
-  --version    show TAFFISH package version
-  --compile    print generated shell code
-  --           pass option-leading arguments to the default command
-
-Common Commands:
-  salmon index       build a Salmon 2 transcript index
-  salmon quant       quantify from reads, alignments, or RAD
-  salmon quantmerge  merge columns from Salmon quantification outputs
-  salmon debug-map   print diagnostic per-read mapping details
-
-Examples:
+Common tasks:
   taf-salmon salmon index \
     -t transcripts.fa -i salmon_index -k 31 -p 8
 
@@ -40,51 +22,68 @@ Examples:
 
   taf-salmon salmon quant \
     -i salmon_index -l A -r reads.fq.gz \
-    --decoder serial --geneMap genes.gtf.gz \
-    -o sample_quant -p 8
-
-  taf-salmon salmon quant \
-    -i salmon_index -l A -r reads.fq.gz \
-    --writeBam mappings.bam --bamCompressThreads 2 \
-    -o sample_quant -p 8
-
-  taf-salmon salmon quant \
-    --rad sample.rad --fldPolicy prior \
-    --fldMean 250 --fldSD 25 -o rad_quant -p 8
+    --geneMap genes.tsv -o sample_quant -p 8
 
   taf-salmon salmon quantmerge \
     --quants sample1_quant sample2_quant \
     --names sample1 sample2 --column TPM -o merged_tpm.tsv
 
-Command Mode:
-  Use the explicit executable form for upstream subcommands, for example
-  "taf-salmon salmon quant ...". The shorter "taf-salmon quant ..." may treat
-  quant as a container executable. Use "taf-salmon -- --version" for an
-  option-leading argument to the default salmon command.
-  Spaced paths need literal inner quotes: -r "'reads/sample 1.fq.gz'".
+Required inputs:
+  index:  -t transcript FASTA; optional -d decoy-name list
+  quant:  -i Salmon 2.7 index plus -r single-end or -1/-2 paired reads
+          Alternatively use -a transcript alignments, genome alignments with
+          --annotation, or --rad FILE.
+  Inputs and output locations are user/project paths; no reference database or
+  model is bundled or downloaded automatically.
 
-Salmon 2.6 Notes:
-  -p is a shared execution-slot budget for compressed-input decoding and
-  mapping. --decoder accepts auto, serial, parallel, or parallel=N;
-  --threadPolicy accepts a reviewed JSON policy file.
-  Plain quant is deterministic by default; --deterministic is a no-op kept
-  for compatibility. --online selects the deprecated one-pass path.
-  The temporary RAD is deleted on success. --radScratchDir relocates it;
-  --radCompress selects lz4, zstd, or none; --skipQuant keeps the output RAD.
-  --writeBam/--writeSam exports are unsorted and unindexed.
-  --sketch selects the sketch / pseudoalignment path.
+Index compatibility:
+  Salmon 2.7 writes index format v2. Every index made by Salmon 2.6 or earlier
+  must be rebuilt with salmon index. Older indexes fail with a rebuild message;
+  do not reuse them for this app.
 
-Compatibility:
-  Salmon 2.6.0 keeps index_version = 1 and needs no rebuild from 2.5.1.
-  Rebuild Salmon 2.0.x or older C++ / pufferfish indices. salmon alevin only
-  prints a migration message; use alevin-fry for current single-cell work.
-  References, decoys, annotations, reads, alignments, and RAD are project input.
+Common options:
+  -p INT                 shared execution-slot budget
+  -l FORMAT              library type, commonly A for automatic detection
+  --sketch               use sketch/pseudoalignment mapping
+  --decoder MODE         auto, serial, parallel, or parallel=N
+  --geneMap FILE         transcript-to-gene TSV or GTF/GFF, compressed or plain
+  --writeRad FILE        retain RAD mappings while quantifying
+  --rad FILE             quantify a RAD file directly
+  --writeBam FILE        write unsorted BGZF BAM mappings
+  --writeSam FILE        write unsorted SAM mappings
+  --radScratchDir DIR    relocate the temporary intermediate RAD
+  --skipQuant            stop after mapping and keep the output RAD
 
-Package:
-  Image: ghcr.io/taffish/salmon:2.6.0-r1
-  Backends/platforms: Docker or Podman; native linux/amd64, linux/arm64
-  Runtime version: salmon 2.6.0
-  Runtime support: GNU libraries, CA certificates, procps
-  Licenses: Apache-2.0 (TAFFISH app); BSD-3-Clause (upstream)
-  Citation DOI: 10.1038/nmeth.4197
-  Release: https://github.com/COMBINE-lab/salmon/releases/tag/v2.6.0
+Key outputs:
+  quant.sf                       transcript abundance table
+  quant.genes.sf                 gene-level table when --geneMap is used
+  aux_info/meta_info.json        run, mapping, and inference metadata
+  logs/salmon_quant.log          quantification log
+  quantmerge -o FILE             merged abundance matrix
+
+Immediate notes:
+  Index and quant output directories must be writable. Default quantification
+  also needs temporary RAD space; use --radScratchDir for another volume.
+  --writeBam and --writeSam outputs are unsorted and unindexed.
+  Use the explicit executable form "taf-salmon salmon quant ..." because
+  "taf-salmon quant ..." may treat quant as a container executable.
+  For paths containing spaces, prefer whitespace-free paths or use the literal
+  inner-quote form documented in the README.
+
+Backends:
+  Docker, Podman, and Apptainer use the same wrapper commands and need no GPU,
+  device, port, network, database, model, or special runtime argument. Select a
+  backend with TAFFISH_CONTAINER_BACKEND=docker, podman, or apptainer.
+
+More help:
+  taf-salmon salmon index --help
+  taf-salmon salmon quant --help
+  taf-salmon salmon quantmerge --help
+  https://combine-lab.github.io/salmon/
+  https://github.com/COMBINE-lab/salmon/releases/tag/v2.7.0
+
+Wrapper options:
+  taf-salmon --help       Show this TAFFISH help.
+  taf-salmon --version    Show TAFFISH package version.
+  taf-salmon --compile    Print the generated wrapper shell.
+  taf-salmon -- --help    Pass an option-leading argument to salmon.
