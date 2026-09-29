@@ -1,14 +1,11 @@
-ARG BUILDARCH
-ARG TARGETARCH
-
 FROM debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS fetcher
 
 ARG BUILDARCH
 ARG TARGETARCH
-ARG SALMON_VERSION=2.7.0
-ARG SALMON_COMMIT=d3be8b31d31242683c01fc5510c48fbd8bc917fb
-ARG SALMON_X86_64_SHA256=5f42fcd70f270bc9ee8adee0c384fbb457f1606f792d36bb86e0dacf2e46e74a
-ARG SALMON_AARCH64_SHA256=7273f7b50314416b0429b581c472bf1c99ff4d1af35448ab792e4752533fd073
+ARG SALMON_VERSION=2.8.0
+ARG SALMON_COMMIT=ed926b8f6120c592ba13e696fe24732004ee0132
+ARG SALMON_X86_64_SHA256=10a7f7994df7ef0592ac191cc79a1abd41316463000b307647a9dcab21e1efa6
+ARG SALMON_AARCH64_SHA256=3b2bf20b7a87c8207e83debd7aa0a6fefa85fb3b211ca069a394584dee1025c3
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -73,7 +70,7 @@ FROM debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c70
 
 ARG BUILDARCH
 ARG TARGETARCH
-ARG SALMON_VERSION=2.7.0
+ARG SALMON_VERSION=2.8.0
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -103,10 +100,12 @@ RUN set -eux; \
 
 COPY --from=fetcher /opt/salmon /opt/salmon
 COPY docker/salmon-smoke.sh /opt/salmon/share/salmon-smoke.sh
+COPY docker/piscem-v2.rad /opt/salmon/share/piscem-v2.rad
 
 RUN set -eux; \
     ln -sf /opt/salmon/salmon /usr/local/bin/salmon; \
-    chmod 0755 /opt/salmon/share/salmon-smoke.sh
+    chmod 0755 /opt/salmon/share/salmon-smoke.sh; \
+    chmod 0644 /opt/salmon/share/piscem-v2.rad
 
 RUN set -eux; \
     grep -F "version=${SALMON_VERSION}" /opt/salmon/share/source.txt; \
@@ -118,4 +117,4 @@ RUN set -eux; \
       echo "cross-architecture final image: defer runtime smoke (${BUILDARCH:-unknown} -> ${TARGETARCH})"; \
     fi
 
-WORKDIR /root
+WORKDIR /tmp

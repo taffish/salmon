@@ -1,89 +1,81 @@
-salmon 2.7.0-r1
-
-Purpose:
-  Build Salmon transcript indexes and quantify transcript abundance from
-  RNA-seq reads, alignments, or RAD files.
+taf-salmon 2.8.0-r1 — index transcripts and quantify RNA-seq abundance.
 
 Usage:
-  taf-salmon -- --help
-  taf-salmon -- --version
-  taf-salmon salmon index [OPTIONS]
-  taf-salmon salmon quant [OPTIONS]
-  taf-salmon salmon quantmerge [OPTIONS]
+  taf-salmon salmon SUBCOMMAND [OPTIONS]
+  taf-salmon --help                Wrapper help
+  taf-salmon -- --help             Upstream help
+  taf-salmon -- --version          Upstream version
 
 Common tasks:
-  taf-salmon salmon index \
-    -t transcripts.fa -i salmon_index -k 31 -p 8
-
-  taf-salmon salmon quant \
-    -i salmon_index -l A \
-    -1 reads_1.fq.gz -2 reads_2.fq.gz \
-    -o sample_quant -p 8
-
-  taf-salmon salmon quant \
-    -i salmon_index -l A -r reads.fq.gz \
-    --geneMap genes.tsv -o sample_quant -p 8
-
-  taf-salmon salmon quantmerge \
-    --quants sample1_quant sample2_quant \
+  taf-salmon salmon index -t transcripts.fa -i salmon_index -k 31 -p 8
+  taf-salmon salmon quant -i salmon_index -l A \
+    -1 reads_1.fq.gz -2 reads_2.fq.gz -o sample_quant -p 8
+  taf-salmon salmon quant -i salmon_index -l A -r reads.fq.gz \
+    --geneMap genes.tsv -o single_quant -p 8
+  taf-salmon salmon quantmerge --quants sample1_quant sample2_quant \
     --names sample1 sample2 --column TPM -o merged_tpm.tsv
 
-Required inputs:
-  index:  -t transcript FASTA; optional -d decoy-name list
-  quant:  -i Salmon 2.7 index plus -r single-end or -1/-2 paired reads
-          Alternatively use -a transcript alignments, genome alignments with
-          --annotation, or --rad FILE.
-  Inputs and output locations are user/project paths; no reference database or
-  model is bundled or downloaded automatically.
+Inputs and compatibility:
+  index: transcript FASTA; optional -d decoy-name list.
+  quant: index and reads, or -a transcript alignments, genome alignments with
+         --annotation genes.gtf, or --rad FILE.
+  Salmon 2.7 indexes remain compatible. Rebuild indexes from 2.6 or earlier.
+  RAD v2 from current piscem is accepted; Salmon still writes legacy RAD.
+  No production reference, index, model or read set is bundled/downloaded.
 
-Index compatibility:
-  Salmon 2.7 writes index format v2. Every index made by Salmon 2.6 or earlier
-  must be rebuilt with salmon index. Older indexes fail with a rebuild message;
-  do not reuse them for this app.
-
-Common options:
-  -p INT                 shared execution-slot budget
-  -l FORMAT              library type, commonly A for automatic detection
-  --sketch               use sketch/pseudoalignment mapping
+Options for the current task:
+  -l A                   detect library type automatically
+  -p INT                 shared decoding/mapping execution-slot budget
+  --sketch               sketch/pseudoalignment quantification
   --decoder MODE         auto, serial, parallel, or parallel=N
-  --geneMap FILE         transcript-to-gene TSV or GTF/GFF, compressed or plain
-  --writeRad FILE        retain RAD mappings while quantifying
-  --rad FILE             quantify a RAD file directly
-  --writeBam FILE        write unsorted BGZF BAM mappings
-  --writeSam FILE        write unsorted SAM mappings
-  --radScratchDir DIR    relocate the temporary intermediate RAD
-  --skipQuant            stop after mapping and keep the output RAD
+  --geneMap FILE         gene TSV or GTF/GFF, plain or compressed
+  --writeRad FILE        retain RAD mappings
+  --rad FILE             quantify a legacy or v2 RAD file
+  --writeBam FILE         export unsorted, unindexed BGZF BAM mappings
+  --writeSam FILE         export unsorted SAM mappings
+  --radScratchDir DIR    choose writable space for the intermediate RAD
+  --skipQuant            stop after mapping and retain RAD; no quant.sf
+  --emAccel squarem      optional acceleration with the default VBEM
+  --useEM --emAccel daarem  DAAREM requires plain EM, not default VBEM
 
 Key outputs:
-  quant.sf                       transcript abundance table
-  quant.genes.sf                 gene-level table when --geneMap is used
-  aux_info/meta_info.json        run, mapping, and inference metadata
-  logs/salmon_quant.log          quantification log
-  quantmerge -o FILE             merged abundance matrix
+  quant.sf                      transcript abundance
+  quant.genes.sf                gene abundance with --geneMap
+  aux_info/meta_info.json       mapping/inference metadata
+  logs/salmon_quant.log         run log
+  Default quantification deletes its intermediate RAD on success.
+
+Backend selection:
+  export TAFFISH_CONTAINER_BACKEND=docker
+  Or select podman or apptainer; the analysis commands are unchanged.
+  Apptainer requires native Linux. No GPU, display or service port is needed.
+
+Optional administrator-prepared index outside the working directory:
+  INDEX_ROOT=/opt/taffish/references/salmon/PROJECT/VERSION/index
+  Docker:
+    TAFFISH_CONTAINER_BACKEND=docker \
+    TAFFISH_DOCKER_RUN_ARGS="-v $INDEX_ROOT:/reference:ro" \
+      taf-salmon salmon quant -i /reference -l A -r reads.fq.gz -o result
+  Podman:
+    TAFFISH_CONTAINER_BACKEND=podman \
+    TAFFISH_PODMAN_RUN_ARGS="-v $INDEX_ROOT:/reference:ro" \
+      taf-salmon salmon quant -i /reference -l A -r reads.fq.gz -o result
+  Apptainer:
+    TAFFISH_CONTAINER_BACKEND=apptainer \
+    TAFFISH_APPTAINER_RUN_ARGS="--bind $INDEX_ROOT:/reference:ro" \
+      taf-salmon salmon quant -i /reference -l A -r reads.fq.gz -o result
+  Use a resolved physical mount root without spaces; outputs stay in the
+  writable working directory. Select the index explicitly with -i.
 
 Immediate notes:
-  Index and quant output directories must be writable. Default quantification
-  also needs temporary RAD space; use --radScratchDir for another volume.
-  --writeBam and --writeSam outputs are unsorted and unindexed.
-  Use the explicit executable form "taf-salmon salmon quant ..." because
-  "taf-salmon quant ..." may treat quant as a container executable.
-  For paths containing spaces, prefer whitespace-free paths or use the literal
-  inner-quote form documented in the README.
-
-Backends:
-  Docker, Podman, and Apptainer use the same wrapper commands and need no GPU,
-  device, port, network, database, model, or special runtime argument. Select a
-  backend with TAFFISH_CONTAINER_BACKEND=docker, podman, or apptainer.
+  Use new output directories; upstream may overwrite existing outputs.
+  Ensure enough writable scratch space for indexing and intermediate RAD.
+  For ordinary argument paths containing spaces, preserve literal quotes:
+    taf-salmon salmon index -t '"transcripts with spaces.fa"' -i index -k 31
+  Include salmon before a subcommand; taf-salmon quant may run another program.
+  Integrated salmon alevin was removed upstream; use the alevin-fry ecosystem.
 
 More help:
-  taf-salmon salmon index --help
   taf-salmon salmon quant --help
-  taf-salmon salmon quantmerge --help
   https://combine-lab.github.io/salmon/
-  https://github.com/COMBINE-lab/salmon/releases/tag/v2.7.0
-
-Wrapper options:
-  taf-salmon --help       Show this TAFFISH help.
-  taf-salmon --version    Show TAFFISH package version.
-  taf-salmon --compile    Print the generated wrapper shell.
-  taf-salmon -- --help    Pass an option-leading argument to salmon.
+  https://github.com/taffish/salmon

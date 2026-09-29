@@ -3,16 +3,30 @@
 set -eu
 
 mode=${1:-all}
-expected_version=${SALMON_SMOKE_VERSION:-2.7.0}
-work="/tmp/taf-salmon-smoke-${mode}"
+expected_version=${SALMON_SMOKE_VERSION:-2.8.0}
+case "$mode" in *[!a-z0-9-]*|'') echo 'invalid smoke mode' >&2; exit 2 ;; esac
+umask 077
+work=$(mktemp -d "/tmp/taf-salmon-smoke-${mode}.XXXXXX")
 
 cleanup() {
-    rm -rf "$work"
+    status=$?
+    trap - EXIT
+    if [ "$status" -ne 0 ]; then
+        printf 'smoke-stage=%s exit=%s\n' "$mode" "$status" >&2
+        for log in "$work"/*.log "$work"/*.out "$work"/*.ldd; do
+            [ -f "$log" ] || continue
+            printf 'log=%s\n' "${log##*/}" >&2
+            tail -n 40 "$log" >&2
+        done
+    fi
+    rm -rf -- "$work"
+    exit "$status"
 }
 
-trap cleanup EXIT HUP INT TERM
-cleanup
-mkdir -p "$work"
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 write_reads_fixture() {
     cat > "$work/transcripts.fa" <<'EOF'
@@ -80,7 +94,7 @@ smoke_buildtime() {
     ! grep -F 'not found' "$work/salmon.ldd" >/dev/null
     grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
     grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=d3be8b31d31242683c01fc5510c48fbd8bc917fb' \
+    grep -F 'commit=ed926b8f6120c592ba13e696fe24732004ee0132' \
         /opt/salmon/share/source.txt >/dev/null
 }
 
@@ -95,7 +109,7 @@ smoke_interfaces() {
     command -v cmp >/dev/null
     grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
     grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=d3be8b31d31242683c01fc5510c48fbd8bc917fb' \
+    grep -F 'commit=ed926b8f6120c592ba13e696fe24732004ee0132' \
         /opt/salmon/share/source.txt >/dev/null
     salmon --help 2>&1 | grep -F 'RNA-seq transcript quantification' >/dev/null
     ! salmon --help 2>&1 | grep -F '(Rust port)' >/dev/null
@@ -335,9 +349,29 @@ smoke_accel() {
         -o "$work/squarem" -p 1 --emAccel squarem --quiet > "$work/squarem.log" 2>&1
     salmon --no-version-check quant \
         -i "$work/idx" -l A -r "$work/reads.fq" \
-        -o "$work/daarem" -p 1 --emAccel daarem --quiet > "$work/daarem.log" 2>&1
+        -o "$work/daarem" -p 1 --useEM --emAccel daarem --quiet > "$work/daarem.log" 2>&1
     assert_basic_quant "$work/squarem"
     assert_basic_quant "$work/daarem"
+    if salmon --no-version-check quant \
+        -i "$work/idx" -l A -r "$work/reads.fq" \
+        -o "$work/invalid-vbem" -p 1 --emAccel daarem \
+        > "$work/invalid-vbem.log" 2>&1; then
+        echo 'DAAREM with default VBEM was unexpectedly accepted' >&2
+        return 1
+    fi
+    grep -F -- '--emAccel daarem requires plain EM' "$work/invalid-vbem.log" >/dev/null
+    test ! -e "$work/invalid-vbem/quant.sf"
+}
+
+smoke_radv2() {
+    od -An -tx1 -N8 /opt/salmon/share/piscem-v2.rad | grep -F '52 41 44 5f 46 49 4c 45' >/dev/null
+    salmon quant --rad /opt/salmon/share/piscem-v2.rad -l IU \
+        --fldPolicy prior --fldMean 200 --fldSD 20 -o "$work/v2" -p 1 \
+        > "$work/radv2.log" 2>&1
+    grep -F '"num_processed": 400' "$work/v2/aux_info/meta_info.json" >/dev/null
+    grep -F '"num_mapped": 400' "$work/v2/aux_info/meta_info.json" >/dev/null
+    awk 'NR>1 { total+=$5; if ($1=="t0" && $5>299 && $5<301) a=1; if ($1=="t1" && $5>99 && $5<101) b=1 }
+         END { exit !(a && b && total>399.999 && total<400.001) }' "$work/v2/quant.sf"
 }
 
 smoke_bam() {
@@ -456,6 +490,7 @@ run_mode() {
         accel) smoke_accel ;;
         bam) smoke_bam ;;
         rad) smoke_rad ;;
+        radv2) smoke_radv2 ;;
         deterministic) smoke_deterministic ;;
         skip) smoke_skip ;;
         *)
@@ -466,7 +501,7 @@ run_mode() {
 }
 
 if [ "$mode" = all ]; then
-    for smoke_mode in interfaces index compatibility quant pool sketch merge alevin alignment genome accel bam rad deterministic skip; do
+    for smoke_mode in interfaces index compatibility quant pool sketch merge alevin alignment genome accel bam rad radv2 deterministic skip; do
         sh "$0" "$smoke_mode"
     done
 else
