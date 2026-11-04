@@ -1,4 +1,4 @@
-taf-salmon 2.8.0-r1 — index transcripts and quantify RNA-seq abundance.
+taf-salmon 2.11.0-r1 — index transcripts and quantify RNA-seq abundance.
 
 Usage:
   taf-salmon salmon SUBCOMMAND [OPTIONS]
@@ -19,13 +19,14 @@ Inputs and compatibility:
   index: transcript FASTA; optional -d decoy-name list.
   quant: index and reads, or -a transcript alignments, genome alignments with
          --annotation genes.gtf, or --rad FILE.
-  Salmon 2.7 indexes remain compatible. Rebuild indexes from 2.6 or earlier.
+  Upgrading from 2.8 or earlier? Rebuild from the original FASTA and decoys into
+  a NEW directory (format v3). Existing v3 indexes from 2.9/2.10 can be reused.
   RAD v2 from current piscem is accepted; Salmon still writes legacy RAD.
   No production reference, index, model or read set is bundled/downloaded.
 
 Options for the current task:
   -l A                   detect library type automatically
-  -p INT                 shared decoding/mapping execution-slot budget
+  -p INT                 shared decoding/mapping budget (capped at available threads)
   --sketch               sketch/pseudoalignment quantification
   --decoder MODE         auto, serial, parallel, or parallel=N
   --geneMap FILE         gene TSV or GTF/GFF, plain or compressed
@@ -68,7 +69,11 @@ Optional administrator-prepared index outside the working directory:
   writable working directory. Select the index explicitly with -i.
 
 Immediate notes:
-  Use new output directories; upstream may overwrite existing outputs.
+  Always use a fresh output directory. A rerun can remove old quant.sf and
+  quant.genes.sf before detecting a bad input. Zero mapped reads returns nonzero
+  even when output files exist; inspect the exit code and aux_info/meta_info.json.
+  For streamed input, use a FIFO visible to Salmon inside the container; a host
+  shell's /dev/fd paths may not cross the container boundary. See README for an example.
   Ensure enough writable scratch space for indexing and intermediate RAD.
   For ordinary argument paths containing spaces, preserve literal quotes:
     taf-salmon salmon index -t '"transcripts with spaces.fa"' -i index -k 31

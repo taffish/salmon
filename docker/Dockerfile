@@ -1,11 +1,14 @@
+# Both stages pin the multi-platform Debian base. APT mirrors and release asset URLs
+# are external: if a fetch fails, check the source/architecture and checksum first;
+# do not silently substitute another binary, package revision or upstream version.
 FROM debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS fetcher
 
 ARG BUILDARCH
 ARG TARGETARCH
-ARG SALMON_VERSION=2.8.0
-ARG SALMON_COMMIT=ed926b8f6120c592ba13e696fe24732004ee0132
-ARG SALMON_X86_64_SHA256=10a7f7994df7ef0592ac191cc79a1abd41316463000b307647a9dcab21e1efa6
-ARG SALMON_AARCH64_SHA256=3b2bf20b7a87c8207e83debd7aa0a6fefa85fb3b211ca069a394584dee1025c3
+ARG SALMON_VERSION=2.11.0
+ARG SALMON_COMMIT=13a170dcd3d04ecfaaf140db80158fad6d58a837
+ARG SALMON_X86_64_SHA256=e15b1ef0c4bece9c2ce271e2acbafb6ac1dc22b4b038fe8380f849455b9d8527
+ARG SALMON_AARCH64_SHA256=7d87e73701e3310a09fe3cfa5e2d8e72dea6b6dcf2a0f9bc800b868d8d8995dc
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -60,17 +63,14 @@ RUN set -eux; \
       "targetarch=${TARGETARCH}" \
       > /opt/salmon/share/source.txt; \
     grep -F "version=${SALMON_VERSION}" /opt/salmon/share/source.txt; \
-    if [ -n "${BUILDARCH}" ] && [ "${BUILDARCH}" = "${TARGETARCH}" ]; then \
-      test "$(/opt/salmon/salmon --version)" = "salmon ${SALMON_VERSION}"; \
-    else \
-      echo "cross-architecture fetch: skip target binary execution (${BUILDARCH:-unknown} -> ${TARGETARCH})"; \
-    fi
+    chmod 0755 /opt/salmon /opt/salmon/share /opt/salmon/salmon; \
+    chmod 0644 /opt/salmon/LICENSE /opt/salmon/README.md /opt/salmon/share/source.txt
 
 FROM debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
 
 ARG BUILDARCH
 ARG TARGETARCH
-ARG SALMON_VERSION=2.8.0
+ARG SALMON_VERSION=2.11.0
 ARG DEBIAN_FRONTEND=noninteractive
 ARG APT_MIRROR=http://deb.debian.org/debian
 ARG APT_SECURITY_MIRROR=http://deb.debian.org/debian-security
@@ -79,6 +79,8 @@ ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV TAFFISH_ENV=TAFFISH
 ENV TAFFISH_NAME=salmon
+ENV TAFFISH_VERSION=${SALMON_VERSION}
+ENV TAFFISH_RELEASE=1
 
 RUN set -eux; \
     sed -i \

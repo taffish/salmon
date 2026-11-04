@@ -1,47 +1,34 @@
 # salmon
 
-`salmon` packages Salmon **2.8.0-r1** for TAFFISH: a CPU CLI for transcript-level
+`salmon` packages Salmon **2.11.0-r1** for TAFFISH: a CPU CLI for transcript-level
 RNA-seq quantification. The thin wrapper preserves upstream commands and options.
 
 ## What This App Packages
 
 - Command: `taf-salmon`; tool app with automatic command mode.
-- Official [v2.8.0](https://github.com/COMBINE-lab/salmon/releases/tag/v2.8.0),
-  commit `ed926b8f6120c592ba13e696fe24732004ee0132`.
+- Official [v2.11.0](https://github.com/COMBINE-lab/salmon/releases/tag/v2.11.0),
+  commit `13a170dcd3d04ecfaaf140db80158fad6d58a837`.
 - Native Linux amd64 and arm64 official binaries; no emulation or algorithm patches.
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz` SHA256:
-  `10a7f7994df7ef0592ac191cc79a1abd41316463000b307647a9dcab21e1efa6`.
+  `e15b1ef0c4bece9c2ce271e2acbafb6ac1dc22b4b038fe8380f849455b9d8527`.
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz` SHA256:
-  `3b2bf20b7a87c8207e83debd7aa0a6fefa85fb3b211ca069a394584dee1025c3`.
+  `7d87e73701e3310a09fe3cfa5e2d8e72dea6b6dcf2a0f9bc800b868d8d8995dc`.
 - Digest-pinned Debian 13, GNU runtime libraries, CA certificates and `procps`.
   Binary, upstream README/license and source identity are retained under `/opt/salmon`.
 - A tiny synthetic RAD v2 fixture for packaging checks; no production reference data.
 
 Each asset SHA is verified; version, commit, asset and target architecture are
-recorded. Build-time checks are limited to version, ordinary help, provenance and
-dynamic libraries. Full indexing, inference and numerical checks run at runtime.
+recorded. Build-time checks are limited to executable/version and provenance. Help, dynamic links, indexing, inference and numerical checks run at runtime.
 
-## Scope and 2.8 Changes
+## Upgrading from 2.8
 
-Included: `index`, read/alignment/RAD `quant`, `quantmerge`, `debug-map`, selective
-alignment and sketch mapping, gene aggregation, genome projection, BAM/SAM export,
-bootstrap/Gibbs options, and upstream inference/decoding controls.
+**Do not overwrite your old index.** Salmon 2.9 changed to index format v3 (SSHash 6); 2.11 refuses 2.8/v2 and earlier. Rebuild from the original FASTA, decoys and index settings in a new directory. With 2.9/2.10 v3 indexes, reuse the complete directory read-only; do not edit `info.json` to bypass a format check.
 
-The [2.8 release notes](https://github.com/COMBINE-lab/salmon/blob/v2.8.0/docs/release-notes-2.8.0.md)
-describe two important changes:
-
-- Read **RAD v2** from current piscem and legacy RAD. Salmon's own writer remains
-  legacy; accepting v2 does not imply writing v2.
-- `--emAccel daarem` now requires **plain EM** (`--useEM` or `--meta`). Default
-  VBEM plus DAAREM is rejected; use `none` or SQUAREM with VBEM. The upstream fix
-  addresses negative intermediate abundances and inappropriate convergence.
-
-Salmon 2.7 indexes remain compatible: index format v2 and SSHash format 5 are
-unchanged. Rebuild indexes from 2.6 or earlier. Deterministic two-phase inference
-remains the default; `--deterministic` is a no-op, `--online` the deprecated
-one-pass path. This does not promise identical floating-point results across CPU
-architectures or changed inference options. SQUAREM does not promise the same
-VBEM fixed point as plain iteration.
+- [2.9](https://github.com/COMBINE-lab/salmon/releases/tag/v2.9.0) introduced reproducible indexes and per-group VBEM convergence. [2.10](https://github.com/COMBINE-lab/salmon/releases/tag/v2.10.0) also uses ambiguous concordant pairs for the fragment-length distribution.
+- [2.11](https://github.com/COMBINE-lab/salmon/releases/tag/v2.11.0) packs the reference for selective alignment, accepts FIFO inputs, and reports truncated FASTQ as an error. Alignment-mode and some stranded/short-read counts changed; identical estimates across versions are not guaranteed.
+- Missing decoy names, invalid k/minimizer/quant values, and ambiguous quantmerge sample names are rejected. For SAM/BAM input, group mates by read name; unmapped records count toward the mapping-rate denominator.
+- Use **fresh output directories**. A failed rerun can remove old result tables. Zero input/mapped fragments exit nonzero even if diagnostic outputs exist. Check the command status before consuming `quant.sf`.
+- The four principal operations are index, read/alignment/RAD quantification, quantmerge and diagnostic mapping. Salmon reads both legacy and piscem RAD v2; its own writer emits legacy RAD. DAAREM requires plain EM; default VBEM supports SQUAREM.
 
 Not bundled: production reads/references, generic pretrained models, aligners,
 `piscem`, `alevin-fry`, `simpleaf`, `oarfish`, or a GUI environment. Integrated
@@ -81,6 +68,31 @@ Genome alignments must be name-grouped with the corresponding `--annotation`.
 gzip/BGZF, bzip2, xz and zstd. `--decoder auto|serial|parallel|parallel=N` and
 `--threadPolicy FILE` control decoding; plain/non-seekable inputs use serial decoding.
 
+### Streaming without passing a host file descriptor
+
+A host shell's process substitution (for example `<(gzip -dc reads.fq.gz)`) is not reliably visible inside a container. Save this as `stream.sh` alongside `reads.fq.gz` and a compatible `index/`, then run **`taf-salmon bash stream.sh`** with any backend. The FIFO lives in the container's private scratch; the producer status is checked.
+
+```bash
+#!/usr/bin/env bash
+set -eu
+scratch=$(mktemp -d)
+producer=
+cleanup() {
+  if [ -n "$producer" ]; then kill "$producer" 2>/dev/null || :; wait "$producer" 2>/dev/null || :; fi
+  rm -f -- "$scratch/reads"; rmdir -- "$scratch"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+mkfifo "$scratch/reads"
+gzip -dc reads.fq.gz > "$scratch/reads" & producer=$!
+salmon quant -i index -l A -r "$scratch/reads" -o streamed -p 1
+wait "$producer"
+producer=
+```
+
+An input cut exactly between two complete records is indistinguishable from an intentionally shorter stream; check producer status too.
+
 ## Command Mode and Paths
 
 Prefer `taf-salmon salmon quant ...`, not `taf-salmon quant ...`: the first
@@ -103,7 +115,7 @@ taf-salmon salmon quant -i '"index with spaces"' -l A -r '"sample 1.fq.gz"' -o '
 - Index construction writes its output and scratch (`--sshashTmpDir` if supplied).
   Quant writes output and intermediate RAD; use `--radScratchDir` for writable
   space. Intermediate RAD is deleted on success; `--skipQuant` retains RAD and
-  does not produce `quant.sf`. Use new outputs: upstream may overwrite files.
+  does not produce `quant.sf`. Use fresh outputs (see upgrade notes).
 - References/prepared indexes remain read-only. No analysis writes `/opt/salmon`.
   `--no-version-check`/its historical environment variable are no-ops: Salmon 2
   makes no version-check network call. Missing inputs fail, not download.
@@ -111,7 +123,7 @@ taf-salmon salmon quant -i '"index with spaces"' -l A -r '"sample 1.fq.gz"' -o '
 ## References and Administrator-Prepared Indexes
 
 Reference FASTA/annotations/decoys and indexes derived from them are **project
-inputs and derived artifacts**. The 2.8 source exposes no reference/model
+inputs and derived artifacts**. The versioned source exposes no reference/model
 downloader, catalog, alias lookup or remote fallback, and defines no downloadable
 Salmon reference family. An app-specific catalog installer, automatic discovery
 or override/disable helper is therefore N/A, not merely omitted because users
@@ -150,31 +162,7 @@ Both declared platforms are native: `linux/amd64` and `linux/arm64`. No emulatio
 GPU/device/port/network option is intrinsic. Apptainer requires native Linux, not
 macOS. Optional read-only reference mounts are site/run policy.
 
-Validation on 2026-09-26 used this exact candidate, not old 2.7 results:
-
-| Native platform | Docker | Podman | Apptainer |
-| --- | --- | --- | --- |
-| linux/amd64 (xjp) | full direct/read-only smoke and wrapper PASS | full direct/read-only smoke and wrapper PASS | actual read-only SIF and wrapper PASS |
-| linux/arm64 (local Linux VMs) | full direct/read-only smoke PASS; final wrapper rerun incomplete (host engine startup stalled) | full direct/read-only smoke and wrapper PASS | not separately validated |
-
-All 288 exact manifest probes passed. Four complete backend/platform wrapper
-suites passed (84 calls), including ordinary users, argument spaces, compressed
-reads, DAAREM policy, RAD v2, actual read-only shared indexes and failure diagnostics.
-The final arm64 Docker wrapper rerun passed its first 13 calls, then Docker stopped
-starting even a no-bind version probe (containers stayed Created, PID 0). This is
-not counted as a full wrapper PASS; earlier evidence is retained, not relabelled.
-No daemon restart was performed. There is no architecture-specific mount/runtime
-branch: both native platforms and all three backend axes are independently covered.
-
-An index genuinely built by official Salmon 2.7.0 was reused read-only by 2.8.0;
-input/index hashes stayed unchanged. This is a tiny compatibility test, not a
-production-reference validation. Native arm64 Apptainer remains untested.
-
-Final Docker image sizes: amd64 113,554,396 bytes (108.29 MiB), arm64 133,279,850
-bytes (127.11 MiB). `/opt/salmon` is about 21/19 MiB respectively. Multi-stage
-fetching excludes curl/xz tooling and download archives; apt lists are removed.
-No Python/Conda/build toolchain, production data or obvious large removable cache
-is retained. Runtime libraries, certificates, procps and upstream notices remain.
+Docker and Podman run the same native OCI image on each declared platform. On Linux, Apptainer uses a read-only SIF converted from the amd64 candidate. The ordinary CLI needs neither a display nor a port. A site-provided index is read-only; the work directory and per-run scratch are writable. Current release validation and sizes belong in the release notes, not in the installed help.
 
 ## Testing and Boundaries
 
@@ -198,4 +186,4 @@ References retain their own licenses. Cite Patro et al. (2017), Nature Methods,
 DOI `10.1038/nmeth.4197`, PMID `28263959`, and record the exact Salmon version.
 
 See [upstream documentation](https://combine-lab.github.io/salmon/) and the
-[migration guide](https://github.com/COMBINE-lab/salmon/blob/v2.8.0/MIGRATION.md).
+[migration guide](https://github.com/COMBINE-lab/salmon/blob/v2.11.0/MIGRATION.md).

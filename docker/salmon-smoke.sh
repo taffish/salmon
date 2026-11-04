@@ -3,7 +3,7 @@
 set -eu
 
 mode=${1:-all}
-expected_version=${SALMON_SMOKE_VERSION:-2.8.0}
+expected_version=${SALMON_SMOKE_VERSION:-2.11.0}
 case "$mode" in *[!a-z0-9-]*|'') echo 'invalid smoke mode' >&2; exit 2 ;; esac
 umask 077
 work=$(mktemp -d "/tmp/taf-salmon-smoke-${mode}.XXXXXX")
@@ -11,6 +11,7 @@ work=$(mktemp -d "/tmp/taf-salmon-smoke-${mode}.XXXXXX")
 cleanup() {
     status=$?
     trap - EXIT
+    if [ -n "${writer:-}" ]; then kill "$writer" 2>/dev/null || :; wait "$writer" 2>/dev/null || :; fi
     if [ "$status" -ne 0 ]; then
         printf 'smoke-stage=%s exit=%s\n' "$mode" "$status" >&2
         for log in "$work"/*.log "$work"/*.out "$work"/*.ldd; do
@@ -84,18 +85,12 @@ assert_basic_quant() {
 }
 
 smoke_buildtime() {
+    # Keep the build gate architecture-neutral; linkage, flags and inference
+    # belong to the runtime suite, not a particular help layout or CPU count.
     command -v salmon >/dev/null
-    command -v ldd >/dev/null
-    test "$(salmon --version)" = "salmon ${expected_version}"
-    salmon --help 2>&1 | grep -F 'RNA-seq transcript quantification' >/dev/null
-    ldd "$(command -v salmon)" > "$work/salmon.ldd"
-    grep -F 'libgcc_s.so' "$work/salmon.ldd" >/dev/null
-    grep -F 'libc.so' "$work/salmon.ldd" >/dev/null
-    ! grep -F 'not found' "$work/salmon.ldd" >/dev/null
-    grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
-    grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=ed926b8f6120c592ba13e696fe24732004ee0132' \
-        /opt/salmon/share/source.txt >/dev/null
+    salmon --version > "$work/version.out"
+    awk -v v="$expected_version" '$1 == "salmon" && $2 == v {ok=1} END {exit !ok}' "$work/version.out"
+    grep -Fx "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
 }
 
 smoke_interfaces() {
@@ -109,33 +104,35 @@ smoke_interfaces() {
     command -v cmp >/dev/null
     grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
     grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=ed926b8f6120c592ba13e696fe24732004ee0132' \
+    grep -F 'commit=13a170dcd3d04ecfaaf140db80158fad6d58a837' \
         /opt/salmon/share/source.txt >/dev/null
-    salmon --help 2>&1 | grep -F 'RNA-seq transcript quantification' >/dev/null
-    ! salmon --help 2>&1 | grep -F '(Rust port)' >/dev/null
-    ! salmon --help 2>&1 | grep -F 'alevin' >/dev/null
+    salmon --help > "$work/top.help" 2>&1
+    grep -F 'RNA-seq transcript quantification' "$work/top.help" >/dev/null
+    ldd "$(command -v salmon)" > "$work/salmon.ldd"
+    grep -F 'libc.so' "$work/salmon.ldd" >/dev/null
+    grep -F 'libgcc_s.so' "$work/salmon.ldd" >/dev/null
+    if grep -F 'not found' "$work/salmon.ldd"; then return 1; fi
     salmon --no-version-check --help 2>&1 | grep -F 'no-op' >/dev/null
     salmon --no-version-check index --help 2>&1 | grep -F 'Build a salmon index' >/dev/null
     salmon --no-version-check index --help 2>&1 | grep -F 'sshashTmpDir' >/dev/null
     salmon --no-version-check index --help 2>&1 | grep -F 'ramLimit' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'Quantify transcript abundances' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'writeRad' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'deterministic' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'The default since 2.6.0' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F -- '--online' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'radScratchDir' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'radCompress' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'skipQuant' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'errorModel' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'annotation' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F -- '--decoder' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F -- '--threadPolicy' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'optionally compressed' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'writeBam' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'writeSam' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'bamCompressThreads' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'fldPolicy' >/dev/null
-    salmon --no-version-check quant --help 2>&1 | grep -F 'emAccel' >/dev/null
+    salmon --no-version-check quant --help > "$work/quant.help" 2>&1
+    grep -F 'Quantify transcript abundances' "$work/quant.help" >/dev/null
+    grep -F 'writeRad' "$work/quant.help" >/dev/null
+    grep -F 'deterministic' "$work/quant.help" >/dev/null
+    grep -F -- '--online' "$work/quant.help" >/dev/null
+    grep -F 'radScratchDir' "$work/quant.help" >/dev/null
+    grep -F 'radCompress' "$work/quant.help" >/dev/null
+    grep -F 'skipQuant' "$work/quant.help" >/dev/null
+    grep -F 'errorModel' "$work/quant.help" >/dev/null
+    grep -F 'annotation' "$work/quant.help" >/dev/null
+    grep -F -- '--decoder' "$work/quant.help" >/dev/null
+    grep -F -- '--threadPolicy' "$work/quant.help" >/dev/null
+    grep -F 'writeBam' "$work/quant.help" >/dev/null
+    grep -F 'writeSam' "$work/quant.help" >/dev/null
+    grep -F 'bamCompressThreads' "$work/quant.help" >/dev/null
+    grep -F 'fldPolicy' "$work/quant.help" >/dev/null
+    grep -F 'emAccel' "$work/quant.help" >/dev/null
     salmon --no-version-check quantmerge --help 2>&1 | grep -F 'Merge a column across multiple samples' >/dev/null
     salmon --no-version-check debug-map --help 2>&1 | grep -F 'per-read best-mapping detail' >/dev/null
 }
@@ -147,8 +144,8 @@ smoke_index() {
     test -s "$work/idx/index.ssi"
     test -s "$work/idx/index.ctab"
     grep -F "\"salmon_version\": \"${expected_version}\"" "$work/idx/info.json" >/dev/null
-    grep -F '"index_version": 2' "$work/idx/info.json" >/dev/null
-    grep -F '"sshash_format_version": 5' "$work/idx/info.json" >/dev/null
+    grep -F '"index_version": 3' "$work/idx/info.json" >/dev/null
+    grep -F '"sshash_format_version": 6' "$work/idx/info.json" >/dev/null
     grep -F '"num_refs": 2' "$work/idx/info.json" >/dev/null
 }
 
@@ -157,18 +154,18 @@ smoke_compatibility() {
     build_index
 
     cp -R "$work/idx" "$work/idx-old"
-    sed -i 's/"index_version": 2/"index_version": 1/' \
+    sed -i 's/"index_version": 3/"index_version": 1/' \
         "$work/idx-old/info.json"
     if salmon --no-version-check quant \
         -i "$work/idx-old" -l A -r "$work/reads.fq" \
         -o "$work/old-quant" -p 1 > "$work/old-index.log" 2>&1; then
         return 1
     fi
-    grep -F 'requires index format v2+' "$work/old-index.log" >/dev/null
+    grep -F 'requires index format v3+' "$work/old-index.log" >/dev/null
     grep -F 'rebuild it with' "$work/old-index.log" >/dev/null
 
     cp -R "$work/idx" "$work/idx-future"
-    sed -i 's/"index_version": 2/"index_version": 999/' \
+    sed -i 's/"index_version": 3/"index_version": 999/' \
         "$work/idx-future/info.json"
     if salmon --no-version-check quant \
         -i "$work/idx-future" -l A -r "$work/reads.fq" \
@@ -256,7 +253,7 @@ smoke_pool() {
         grep -F 'decoder selected by request: parallel' \
             "$work/pool-${iteration}.log" >/dev/null
         grep -F 'thread execution plan' "$work/pool-${iteration}.log" >/dev/null
-        grep -F 'mapping reads (selective-alignment mode, 8 threads)' \
+        grep -E 'mapping reads \(selective-alignment mode, [1-8] threads?\)' \
             "$work/pool-${iteration}.log" >/dev/null
         iteration=$((iteration + 1))
     done
@@ -311,6 +308,11 @@ EOF
     grep -F '"num_mapped": 2' "$work/u/aux_info/meta_info.json" >/dev/null
     grep -F '"num_mapped": 1' "$work/sf/aux_info/meta_info.json" >/dev/null
     grep -F '"num_mapped": 1' "$work/sr/aux_info/meta_info.json" >/dev/null
+    # In alignment mode, unmapped records are part of the rate denominator.
+    printf 'unmapped\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\tIIII\n' >> "$work/se.sam"
+    salmon quant -a "$work/se.sam" -l U --noErrorModel -o "$work/mixed" -p 1 > "$work/mixed.log" 2>&1
+    grep -F '"num_processed": 3' "$work/mixed/aux_info/meta_info.json" >/dev/null
+    grep -F '"num_mapped": 2' "$work/mixed/aux_info/meta_info.json" >/dev/null
 }
 
 smoke_genome() {
@@ -474,6 +476,59 @@ smoke_skip() {
     test "$(find "$work/scratch" -mindepth 1 -print | wc -l)" -eq 0
 }
 
+smoke_streams() {
+    write_reads_fixture
+    build_index
+    # Each FIFO is created inside this process's private /tmp. Keep the writer
+    # PID so a failed reader cannot leave a child blocked on open.
+    mkfifo "$work/input.pipe"
+    cat "$work/transcripts.fa" > "$work/input.pipe" & writer=$!
+    salmon index -t "$work/input.pipe" -i "$work/pipe-index" -k 15 -p 1 \
+        > "$work/index-stream.log" 2>&1
+    wait "$writer"; writer=
+    (cd "$work/idx"; find . -type f | LC_ALL=C sort) > "$work/files"
+    (cd "$work/pipe-index"; find . -type f | LC_ALL=C sort) > "$work/files-new"
+    cmp "$work/files" "$work/files-new"
+    while IFS= read -r member; do
+        cmp "$work/idx/$member" "$work/pipe-index/$member"
+    done < "$work/files"
+    cat "$work/reads.fq" > "$work/input.pipe" & writer=$!
+    salmon quant -i "$work/pipe-index" -l U -r "$work/input.pipe" -o "$work/from-pipe" -p 1 \
+        > "$work/quant-stream.log" 2>&1
+    wait "$writer"; writer=
+    assert_basic_quant "$work/from-pipe"
+}
+
+smoke_validation() {
+    write_reads_fixture
+    build_index
+    printf 'tx1\tg1\ntx2\tg2\n' > "$work/genes.tsv"
+    salmon quant -i "$work/idx" -l U -r "$work/reads.fq" --geneMap "$work/genes.tsv" \
+        -o "$work/rerun" -p 1 > "$work/first.log" 2>&1
+    test -s "$work/rerun/quant.sf"; test -s "$work/rerun/quant.genes.sf"
+    cp "$work/reads.fq" "$work/truncated.fq"
+    printf '@incomplete\nACGT\n' >> "$work/truncated.fq"
+    if salmon quant -i "$work/idx" -l U -r "$work/truncated.fq" -o "$work/rerun" -p 1 \
+         > "$work/cut.log" 2>&1; then return 1; fi
+    grep -F 'truncated.fq' "$work/cut.log" >/dev/null
+    grep -Ei 'FASTQ record|truncated' "$work/cut.log" >/dev/null
+    test ! -e "$work/rerun/quant.sf"; test ! -e "$work/rerun/quant.genes.sf"
+    printf '@zero\nCCCCCCCCCCCCCCCCCCCC\n+\nFFFFFFFFFFFFFFFFFFFF\n' > "$work/zero.fq"
+    if salmon quant -i "$work/idx" -l U -r "$work/zero.fq" -o "$work/zero" -p 1 \
+        > "$work/zero.log" 2>&1; then return 1; fi
+    grep -F '0 fragments mapped' "$work/zero.log" >/dev/null
+    test -s "$work/zero/quant.sf"
+    grep -F '"num_mapped": 0' "$work/zero/aux_info/meta_info.json" >/dev/null
+    printf 'unknown-decoy\n' > "$work/decoys"
+    if salmon index -t "$work/transcripts.fa" -d "$work/decoys" -k 15 -p 1 \
+        -i "$work/invalid" > "$work/decoy.log" 2>&1; then return 1; fi
+    grep -F 'unknown-decoy' "$work/decoy.log" >/dev/null
+    if salmon quantmerge --quants "$work/zero" "$work/zero" --names same same \
+        --column TPM -o "$work/rejected.tsv" > "$work/duplicate.log" 2>&1; then return 1; fi
+    grep -Fi 'same' "$work/duplicate.log" >/dev/null
+    test ! -s "$work/rejected.tsv"
+}
+
 run_mode() {
     case "$1" in
         buildtime) smoke_buildtime ;;
@@ -493,6 +548,8 @@ run_mode() {
         radv2) smoke_radv2 ;;
         deterministic) smoke_deterministic ;;
         skip) smoke_skip ;;
+        streams) smoke_streams ;;
+        validation) smoke_validation ;;
         *)
             echo "unknown smoke mode: $1" >&2
             return 2
@@ -501,7 +558,7 @@ run_mode() {
 }
 
 if [ "$mode" = all ]; then
-    for smoke_mode in interfaces index compatibility quant pool sketch merge alevin alignment genome accel bam rad radv2 deterministic skip; do
+    for smoke_mode in interfaces index compatibility quant pool sketch merge alevin alignment genome accel bam rad radv2 deterministic skip streams validation; do
         sh "$0" "$smoke_mode"
     done
 else
