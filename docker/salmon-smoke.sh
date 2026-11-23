@@ -3,7 +3,7 @@
 set -eu
 
 mode=${1:-all}
-expected_version=${SALMON_SMOKE_VERSION:-2.11.0}
+expected_version=${SALMON_SMOKE_VERSION:-2.12.0}
 case "$mode" in *[!a-z0-9-]*|'') echo 'invalid smoke mode' >&2; exit 2 ;; esac
 umask 077
 work=$(mktemp -d "/tmp/taf-salmon-smoke-${mode}.XXXXXX")
@@ -104,7 +104,7 @@ smoke_interfaces() {
     command -v cmp >/dev/null
     grep -F 'upstream=COMBINE-lab/salmon' /opt/salmon/share/source.txt >/dev/null
     grep -F "version=${expected_version}" /opt/salmon/share/source.txt >/dev/null
-    grep -F 'commit=13a170dcd3d04ecfaaf140db80158fad6d58a837' \
+    grep -F 'commit=d71d1331371d29073006220369cbc48ff1802040' \
         /opt/salmon/share/source.txt >/dev/null
     salmon --help > "$work/top.help" 2>&1
     grep -F 'RNA-seq transcript quantification' "$work/top.help" >/dev/null
@@ -120,7 +120,7 @@ smoke_interfaces() {
     grep -F 'Quantify transcript abundances' "$work/quant.help" >/dev/null
     grep -F 'writeRad' "$work/quant.help" >/dev/null
     grep -F 'deterministic' "$work/quant.help" >/dev/null
-    grep -F -- '--online' "$work/quant.help" >/dev/null
+    if grep -F -- '--online' "$work/quant.help"; then return 1; fi
     grep -F 'radScratchDir' "$work/quant.help" >/dev/null
     grep -F 'radCompress' "$work/quant.help" >/dev/null
     grep -F 'skipQuant' "$work/quant.help" >/dev/null
@@ -436,17 +436,17 @@ smoke_deterministic() {
         -i "$work/idx" -l A -r "$work/reads.fq" \
         -o "$work/flagged" -p 1 --deterministic --quiet \
         > "$work/flagged.log" 2>&1
-    salmon --no-version-check quant \
+    if salmon --no-version-check quant \
         -i "$work/idx" -l A -r "$work/reads.fq" \
         -o "$work/online" -p 1 --online \
-        > "$work/online.log" 2>&1
+        > "$work/online.log" 2>&1; then return 1; fi
     assert_basic_quant "$work/default"
     assert_basic_quant "$work/flagged"
-    assert_basic_quant "$work/online" 3 online
+    test ! -e "$work/online/quant.sf"
     cmp "$work/default/quant.sf" "$work/flagged/quant.sf"
     grep -F '"frag_length_source": "prior"' \
         "$work/default/aux_info/meta_info.json" >/dev/null
-    grep -Fi 'deprecated' "$work/online.log" >/dev/null
+    grep -F -- '--online was removed in salmon 2.12.0' "$work/online.log" >/dev/null
     if find "$work/default" "$work/flagged" -type f -name '*.rad' | grep . >/dev/null; then
         return 1
     fi
@@ -457,7 +457,7 @@ smoke_deterministic() {
         > "$work/conflict.log" 2>&1; then
         return 1
     fi
-    grep -F "cannot be used with '--deterministic'" "$work/conflict.log" >/dev/null
+    grep -F -- '--online was removed in salmon 2.12.0' "$work/conflict.log" >/dev/null
 }
 
 smoke_skip() {
@@ -529,6 +529,72 @@ smoke_validation() {
     test ! -s "$work/rejected.tsv"
 }
 
+smoke_alignment_streams() {
+    write_reads_fixture
+    build_index
+    salmon quant -i "$work/idx" -l A -r "$work/reads.fq" -p 1 \
+        -o "$work/source-sam" --writeSam "$work/input.sam" > "$work/source-sam.log" 2>&1
+    salmon quant -i "$work/idx" -l A -r "$work/reads.fq" -p 1 \
+        -o "$work/source-bam" --writeBam "$work/input.bam" > "$work/source-bam.log" 2>&1
+    salmon quant -a "$work/input.sam" -l A -p 1 -o "$work/regular" > "$work/regular.log" 2>&1
+    assert_basic_quant "$work/regular"
+    mkfifo "$work/alignment.pipe"
+    for format in sam bam; do
+        cat "$work/input.$format" > "$work/alignment.pipe" & writer=$!
+        salmon quant -a "$work/alignment.pipe" -l A -p 1 -o "$work/pipe-$format" \
+            > "$work/pipe-$format.log" 2>&1
+        wait "$writer"; writer=
+        cmp "$work/regular/quant.sf" "$work/pipe-$format/quant.sf"
+    done
+    # The suffix is deliberately misleading; alignment format is content-detected.
+    cp "$work/input.sam" "$work/disguised.bam"
+    salmon quant -a "$work/disguised.bam" -l A -p 1 -o "$work/disguised" > "$work/disguised.log" 2>&1
+    cmp "$work/regular/quant.sf" "$work/disguised/quant.sf"
+    cat "$work/input.sam" > "$work/alignment.pipe" & writer=$!
+    if salmon quant -a "$work/alignment.pipe" -t "$work/transcripts.fa" \
+        --errorModel -l A -p 1 -o "$work/pipe-error-model" > "$work/pipe-error-model.log" 2>&1; then
+        return 1
+    fi
+    # The consumer may reject the stream before the producer has finished.
+    kill "$writer" 2>/dev/null || :; wait "$writer" 2>/dev/null || :; writer=
+    grep -E 'pipe|regular file|seekable' "$work/pipe-error-model.log" >/dev/null
+    test ! -e "$work/pipe-error-model/quant.sf"
+}
+
+smoke_release212() {
+    write_reads_fixture
+    build_index
+    test ! -e "$work/idx/index.tdct"
+    test ! -e "$work/idx/index.tct"
+    mkdir "$work/self-input"
+    cp "$work/transcripts.fa" "$work/self-input/cleaned_refs.fa"
+    if salmon index -t "$work/self-input/cleaned_refs.fa" -i "$work/self-input" -k 15 -p 1 \
+        > "$work/self.log" 2>&1; then return 1; fi
+    cmp "$work/transcripts.fa" "$work/self-input/cleaned_refs.fa"
+    cp "$work/reads.fq" "$work/truncated.fq"
+    printf '@incomplete\nACGT\n' >> "$work/truncated.fq"
+    if salmon debug-map -i "$work/idx" -r "$work/truncated.fq" \
+        > "$work/debug.out" 2> "$work/debug.log"; then return 1; fi
+    grep -F 'truncated.fq' "$work/debug.log" >/dev/null
+    salmon quant -i "$work/idx" -l U -r "$work/reads.fq" -o "$work/skip" -p 1 \
+        --skipQuant --numBootstraps 3 > "$work/skip.log" 2>&1
+    grep -F '"samp_type": "none"' "$work/skip/aux_info/meta_info.json" >/dev/null
+    grep -F '"num_bootstraps": 0' "$work/skip/aux_info/meta_info.json" >/dev/null
+    test ! -e "$work/skip/quant.sf"
+    salmon quant -i "$work/idx" -l U -r "$work/reads.fq" -o "$work/no-gc" -p 1 > "$work/no-gc.log" 2>&1
+    salmon quant -i "$work/idx" -l U -r "$work/reads.fq" -o "$work/gc" -p 1 --gcBias > "$work/gc.log" 2>&1
+    cmp "$work/no-gc/quant.sf" "$work/gc/quant.sf"
+    grep -F '"gc_bias_correct": false' "$work/gc/aux_info/meta_info.json" >/dev/null
+    for threads in 1 4; do
+        salmon quant -i "$work/idx" -l U -r "$work/reads.fq" -o "$work/gibbs-$threads" \
+            -p "$threads" --numGibbsSamples 3 > "$work/gibbs-$threads.log" 2>&1
+        gzip -dc "$work/gibbs-$threads/aux_info/bootstrap/bootstraps.gz" > "$work/gibbs-$threads.raw"
+        test -s "$work/gibbs-$threads.raw"
+    done
+    cmp "$work/gibbs-1/quant.sf" "$work/gibbs-4/quant.sf"
+    cmp "$work/gibbs-1.raw" "$work/gibbs-4.raw"
+}
+
 run_mode() {
     case "$1" in
         buildtime) smoke_buildtime ;;
@@ -550,6 +616,8 @@ run_mode() {
         skip) smoke_skip ;;
         streams) smoke_streams ;;
         validation) smoke_validation ;;
+        alignment-streams) smoke_alignment_streams ;;
+        release212) smoke_release212 ;;
         *)
             echo "unknown smoke mode: $1" >&2
             return 2
@@ -558,7 +626,7 @@ run_mode() {
 }
 
 if [ "$mode" = all ]; then
-    for smoke_mode in interfaces index compatibility quant pool sketch merge alevin alignment genome accel bam rad radv2 deterministic skip streams validation; do
+    for smoke_mode in interfaces index compatibility quant pool sketch merge alevin alignment genome accel bam rad radv2 deterministic skip streams validation alignment-streams release212; do
         sh "$0" "$smoke_mode"
     done
 else

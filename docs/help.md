@@ -1,4 +1,4 @@
-taf-salmon 2.11.0-r1 — index transcripts and quantify RNA-seq abundance.
+taf-salmon 2.12.0-r1 — index transcripts and quantify RNA-seq abundance.
 
 Usage:
   taf-salmon salmon SUBCOMMAND [OPTIONS]
@@ -20,7 +20,8 @@ Inputs and compatibility:
   quant: index and reads, or -a transcript alignments, genome alignments with
          --annotation genes.gtf, or --rad FILE.
   Upgrading from 2.8 or earlier? Rebuild from the original FASTA and decoys into
-  a NEW directory (format v3). Existing v3 indexes from 2.9/2.10 can be reused.
+  a NEW directory (format v3). Complete v3 indexes from 2.9 onward can be reused.
+  --online was removed; drop it. The default is deterministic.
   RAD v2 from current piscem is accepted; Salmon still writes legacy RAD.
   No production reference, index, model or read set is bundled/downloaded.
 
@@ -74,6 +75,7 @@ Immediate notes:
   even when output files exist; inspect the exit code and aux_info/meta_info.json.
   For streamed input, use a FIFO visible to Salmon inside the container; a host
   shell's /dev/fd paths may not cross the container boundary. See README for an example.
+  -a accepts SAM/BAM FIFOs; --errorModel -t requires a regular alignment file.
   Ensure enough writable scratch space for indexing and intermediate RAD.
   For ordinary argument paths containing spaces, preserve literal quotes:
     taf-salmon salmon index -t '"transcripts with spaces.fa"' -i index -k 31

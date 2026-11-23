@@ -1,18 +1,18 @@
 # salmon
 
-`salmon` packages Salmon **2.11.0-r1** for TAFFISH: a CPU CLI for transcript-level
+`salmon` packages Salmon **2.12.0-r1** for TAFFISH: a CPU CLI for transcript-level
 RNA-seq quantification. The thin wrapper preserves upstream commands and options.
 
 ## What This App Packages
 
 - Command: `taf-salmon`; tool app with automatic command mode.
-- Official [v2.11.0](https://github.com/COMBINE-lab/salmon/releases/tag/v2.11.0),
-  commit `13a170dcd3d04ecfaaf140db80158fad6d58a837`.
+- Official [v2.12.0](https://github.com/COMBINE-lab/salmon/releases/tag/v2.12.0),
+  commit `d71d1331371d29073006220369cbc48ff1802040`.
 - Native Linux amd64 and arm64 official binaries; no emulation or algorithm patches.
 - `salmon-cli-x86_64-unknown-linux-gnu.tar.xz` SHA256:
-  `e15b1ef0c4bece9c2ce271e2acbafb6ac1dc22b4b038fe8380f849455b9d8527`.
+  `44f02f8cca063f68ffd978e948912e942716f37cb59acbce85de39e1e1f38f95`.
 - `salmon-cli-aarch64-unknown-linux-gnu.tar.xz` SHA256:
-  `7d87e73701e3310a09fe3cfa5e2d8e72dea6b6dcf2a0f9bc800b868d8d8995dc`.
+  `c7d10d11a6246c8d33a25e28ad0848485338ba45576b2e94374a8efd62334e19`.
 - Digest-pinned Debian 13, GNU runtime libraries, CA certificates and `procps`.
   Binary, upstream README/license and source identity are retained under `/opt/salmon`.
 - A tiny synthetic RAD v2 fixture for packaging checks; no production reference data.
@@ -20,12 +20,30 @@ RNA-seq quantification. The thin wrapper preserves upstream commands and options
 Each asset SHA is verified; version, commit, asset and target architecture are
 recorded. Build-time checks are limited to executable/version and provenance. Help, dynamic links, indexing, inference and numerical checks run at runtime.
 
-## Upgrading from 2.8
+## Upgrading to 2.12
 
-**Do not overwrite your old index.** Salmon 2.9 changed to index format v3 (SSHash 6); 2.11 refuses 2.8/v2 and earlier. Rebuild from the original FASTA, decoys and index settings in a new directory. With 2.9/2.10 v3 indexes, reuse the complete directory read-only; do not edit `info.json` to bypass a format check.
+The index format is unchanged from 2.11. Complete v3 indexes from 2.9 onward
+can be reused read-only. The deprecated `--online` path is removed: drop the
+flag. `--deterministic` remains an accepted no-op; the default is deterministic.
+For alignment error scoring, use `--errorModel -t transcripts.fa` with a regular
+SAM/BAM file; it needs two passes and rejects a pipe. Ordinary `-a` input now
+supports SAM/BAM FIFOs and detects format by content, not the filename.
+
+Upstream 2.12 changes pairing of small inward dovetails, sketch fragment lengths,
+genome mate projection, some bias corrections and Gibbs sampling. Estimates need
+not match 2.11, and Gibbs draws at the same seed can change across versions.
+Do not treat packaging smoke as validation of a research analysis.
+Upstream still documents limits: `--skipQuant -l A` counts all placed fragments
+before library-type filtering; `--posBias` does not supply a per-fragment
+positional weight; failures late in index construction can leave work files.
+See the fixed-version release notes for the complete result changes and limits.
+
+### Migrating older indexes
+
+**Do not overwrite your old index.** Salmon 2.9 changed to index format v3 (SSHash 6); the current release refuses 2.8/v2 and earlier. Rebuild from the original FASTA, decoys and index settings in a new directory. Reuse only complete compatible indexes; do not edit `info.json` to bypass a format check.
 
 - [2.9](https://github.com/COMBINE-lab/salmon/releases/tag/v2.9.0) introduced reproducible indexes and per-group VBEM convergence. [2.10](https://github.com/COMBINE-lab/salmon/releases/tag/v2.10.0) also uses ambiguous concordant pairs for the fragment-length distribution.
-- [2.11](https://github.com/COMBINE-lab/salmon/releases/tag/v2.11.0) packs the reference for selective alignment, accepts FIFO inputs, and reports truncated FASTQ as an error. Alignment-mode and some stranded/short-read counts changed; identical estimates across versions are not guaranteed.
+- [2.11](https://github.com/COMBINE-lab/salmon/releases/tag/v2.11.0) packs the reference for selective alignment, accepts read/FASTA FIFOs, and reports truncated FASTQ as an error.
 - Missing decoy names, invalid k/minimizer/quant values, and ambiguous quantmerge sample names are rejected. For SAM/BAM input, group mates by read name; unmapped records count toward the mapping-rate denominator.
 - Use **fresh output directories**. A failed rerun can remove old result tables. Zero input/mapped fragments exit nonzero even if diagnostic outputs exist. Check the command status before consuming `quant.sf`.
 - The four principal operations are index, read/alignment/RAD quantification, quantmerge and diagnostic mapping. Salmon reads both legacy and piscem RAD v2; its own writer emits legacy RAD. DAAREM requires plain EM; default VBEM supports SQUAREM.
@@ -92,6 +110,10 @@ producer=
 ```
 
 An input cut exactly between two complete records is indistinguishable from an intentionally shorter stream; check producer status too.
+
+For alignment input, use the same in-container producer/FIFO pattern with
+`salmon quant -a "$scratch/alignment" -l A -o aligned -p 1`; send the complete
+SAM/BAM including its header. Do not use `--errorModel` with a FIFO.
 
 ## Command Mode and Paths
 
@@ -172,6 +194,9 @@ parallel workers, sketch, merge, alignment strandedness, genome projection,
 SQUAREM, DAAREM+EM and VBEM rejection, BAM/SAM, repeated legacy RAD inference,
 actual RAD v2 and mapping-only cleanup. Each mode uses unique private scratch and
 emits stage/exit/log tails on failure; the immutable RAD fixture is never modified.
+The 2.12 regressions also cover removed online inference, SAM/BAM FIFO and
+misleading suffixes, self-input protection, truncated diagnostic input, mapping-only
+sampling metadata, single-end GC fallback and thread-independent Gibbs draws.
 
 Direct manifest probes, Docker/Podman read-only-root probes, actual read-only SIF,
 and generated-wrapper binds are separate layers. Tiny packaging tests do not prove
@@ -186,4 +211,4 @@ References retain their own licenses. Cite Patro et al. (2017), Nature Methods,
 DOI `10.1038/nmeth.4197`, PMID `28263959`, and record the exact Salmon version.
 
 See [upstream documentation](https://combine-lab.github.io/salmon/) and the
-[migration guide](https://github.com/COMBINE-lab/salmon/blob/v2.11.0/MIGRATION.md).
+[migration guide](https://github.com/COMBINE-lab/salmon/blob/v2.12.0/MIGRATION.md).

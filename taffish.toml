@@ -1,7 +1,7 @@
 [package]
 name = "salmon"
 kind = "tool"
-version = "2.11.0"
+version = "2.12.0"
 release = 1
 license = "Apache-2.0"
 main = "src/main.taf"
@@ -17,7 +17,7 @@ pipe = true
 command_mode = true
 
 [container]
-image = "ghcr.io/taffish/salmon:2.11.0-r1"
+image = "ghcr.io/taffish/salmon:2.12.0-r1"
 dockerfile = "docker/Dockerfile"
 build_platforms = "linux/amd64,linux/arm64"
 
@@ -33,10 +33,10 @@ type = "github"
 repo = "COMBINE-lab/salmon"
 homepage = "https://combine-lab.github.io/salmon/"
 manual = "https://combine-lab.github.io/salmon/"
-release_url = "https://github.com/COMBINE-lab/salmon/releases/tag/v2.11.0"
-downloads = "https://github.com/COMBINE-lab/salmon/releases/download/v2.11.0/salmon-cli-x86_64-unknown-linux-gnu.tar.xz; https://github.com/COMBINE-lab/salmon/releases/download/v2.11.0/salmon-cli-aarch64-unknown-linux-gnu.tar.xz"
-version = "2.11.0"
-commit = "13a170dcd3d04ecfaaf140db80158fad6d58a837"
+release_url = "https://github.com/COMBINE-lab/salmon/releases/tag/v2.12.0"
+downloads = "https://github.com/COMBINE-lab/salmon/releases/download/v2.12.0/salmon-cli-x86_64-unknown-linux-gnu.tar.xz; https://github.com/COMBINE-lab/salmon/releases/download/v2.12.0/salmon-cli-aarch64-unknown-linux-gnu.tar.xz"
+version = "2.12.0"
+commit = "d71d1331371d29073006220369cbc48ff1802040"
 license = "BSD-3-Clause"
 citation = "Patro et al. 2017, Nature Methods"
 doi = "10.1038/nmeth.4197"
@@ -48,4 +48,4 @@ strip_prefix = "v"
 backend = "docker"
 timeout = 300
 exist = ["salmon", "ldd", "locale", "ps", "gzip", "od", "awk", "cmp", "cp", "sed", "find", "wc", "sh", "mktemp", "tail", "mkfifo"]
-test = ["sh /opt/salmon/share/salmon-smoke.sh interfaces", "sh /opt/salmon/share/salmon-smoke.sh index", "sh /opt/salmon/share/salmon-smoke.sh compatibility", "sh /opt/salmon/share/salmon-smoke.sh quant", "sh /opt/salmon/share/salmon-smoke.sh pool", "sh /opt/salmon/share/salmon-smoke.sh sketch", "sh /opt/salmon/share/salmon-smoke.sh merge", "sh /opt/salmon/share/salmon-smoke.sh alevin", "sh /opt/salmon/share/salmon-smoke.sh alignment", "sh /opt/salmon/share/salmon-smoke.sh genome", "sh /opt/salmon/share/salmon-smoke.sh accel", "sh /opt/salmon/share/salmon-smoke.sh bam", "sh /opt/salmon/share/salmon-smoke.sh rad", "sh /opt/salmon/share/salmon-smoke.sh radv2", "sh /opt/salmon/share/salmon-smoke.sh deterministic", "sh /opt/salmon/share/salmon-smoke.sh skip", "sh /opt/salmon/share/salmon-smoke.sh streams", "sh /opt/salmon/share/salmon-smoke.sh validation"]
+test = ["sh /opt/salmon/share/salmon-smoke.sh interfaces", "sh /opt/salmon/share/salmon-smoke.sh index", "sh /opt/salmon/share/salmon-smoke.sh compatibility", "sh /opt/salmon/share/salmon-smoke.sh quant", "sh /opt/salmon/share/salmon-smoke.sh pool", "sh /opt/salmon/share/salmon-smoke.sh sketch", "sh /opt/salmon/share/salmon-smoke.sh merge", "sh /opt/salmon/share/salmon-smoke.sh alevin", "sh /opt/salmon/share/salmon-smoke.sh alignment", "sh /opt/salmon/share/salmon-smoke.sh genome", "sh /opt/salmon/share/salmon-smoke.sh accel", "sh /opt/salmon/share/salmon-smoke.sh bam", "sh /opt/salmon/share/salmon-smoke.sh rad", "sh /opt/salmon/share/salmon-smoke.sh radv2", "sh /opt/salmon/share/salmon-smoke.sh deterministic", "sh /opt/salmon/share/salmon-smoke.sh skip", "sh /opt/salmon/share/salmon-smoke.sh streams", "sh /opt/salmon/share/salmon-smoke.sh validation", "sh /opt/salmon/share/salmon-smoke.sh alignment-streams", "sh /opt/salmon/share/salmon-smoke.sh release212"]
